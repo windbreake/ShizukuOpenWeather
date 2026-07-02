@@ -1,0 +1,10 @@
+# Optional local proxy wiring example.
+# Copy to docker-compose.override.yml and adjust values locally if a proxy is needed.
+# Do not commit docker-compose.override.yml with credentials.
+
+services:
+  dev:
+    environment:
+      HTTP_PROXY: ${HTTP_PROXY:-}
+      HTTPS_PROXY: ${HTTPS_PROXY:-}
+      NO_PROXY: ${NO_PROXY:-127.0.0.1,localhost}

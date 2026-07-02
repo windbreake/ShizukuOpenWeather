@@ -12,6 +12,7 @@ dist/
 *.sqlite3
 *.log
 .env
+docker-compose.override.yml
 data/*.db
 data/*.sqlite
 data/*.sqlite3
