@@ -1,0 +1,8 @@
+server:
+  port: 8080
+
+shizuku:
+  database:
+    path: data/weather.sqlite
+  rust:
+    weatherCliPath: target/debug/weather
