@@ -6,6 +6,7 @@ out/
 target/
 node_modules/
 dist/
+*.tsbuildinfo
 .DS_Store
 *.db
 *.sqlite

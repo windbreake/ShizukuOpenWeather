@@ -38,8 +38,9 @@ RUN apt-get update \
     && bash -lc 'source /usr/local/sdkman/bin/sdkman-init.sh && sdk install gradle && sdk install kotlin' \
     && curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --no-modify-path --profile default \
     && rustup component add rustfmt clippy \
-    && groupadd --gid "${USER_GID}" "${USERNAME}" \
-    && useradd --uid "${USER_UID}" --gid "${USER_GID}" -m "${USERNAME}" -s /bin/bash \
+    && if getent group "${USER_GID}" >/dev/null; then groupmod --new-name "${USERNAME}" "$(getent group "${USER_GID}" | cut -d: -f1)"; else groupadd --gid "${USER_GID}" "${USERNAME}"; fi \
+    && if getent passwd "${USER_UID}" >/dev/null; then usermod --login "${USERNAME}" --home "/home/${USERNAME}" --move-home "$(getent passwd "${USER_UID}" | cut -d: -f1)"; else useradd --uid "${USER_UID}" --gid "${USER_GID}" -m "${USERNAME}" -s /bin/bash; fi \
+    && usermod --gid "${USER_GID}" --shell /bin/bash "${USERNAME}" \
     && mkdir -p /workspace \
     && chown -R "${USERNAME}:${USERNAME}" /workspace /usr/local/cargo /usr/local/rustup /usr/local/sdkman \
     && apt-get clean \
