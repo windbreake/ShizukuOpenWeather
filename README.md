@@ -58,6 +58,12 @@ docker compose exec dev bash
 gradle checkDevEnvironment
 ```
 
+Start the API and web UI inside the container:
+
+```bash
+scripts/start-dev.sh
+```
+
 Host ports:
 
 - API: http://127.0.0.1:8080
