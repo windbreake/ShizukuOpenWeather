@@ -10,6 +10,10 @@ services:
     working_dir: /workspace
     environment:
       GRADLE_USER_HOME: /home/dev/.gradle
+    ports:
+      - "8080:8080"
+      - "5173:5173"
+      - "4173:4173"
     volumes:
       - .:/workspace
       - cargo-cache:/usr/local/cargo/registry
