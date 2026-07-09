@@ -6,11 +6,11 @@ ARG USER_GID=${USER_UID}
 ARG NODE_MAJOR=22
 
 ENV DEBIAN_FRONTEND=noninteractive
-ENV RUSTUP_HOME=/usr/local/rustup
-ENV CARGO_HOME=/usr/local/cargo
+ENV RUSTUP_HOME=/home/dev/.rustup
+ENV CARGO_HOME=/home/dev/.cargo
 ENV SDKMAN_DIR=/usr/local/sdkman
 ENV GRADLE_USER_HOME=/home/dev/.gradle
-ENV PATH=/usr/local/cargo/bin:/usr/local/sdkman/candidates/gradle/current/bin:/usr/local/sdkman/candidates/kotlin/current/bin:${PATH}
+ENV PATH=/home/dev/.cargo/bin:/usr/local/sdkman/candidates/gradle/current/bin:/usr/local/sdkman/candidates/kotlin/current/bin:${PATH}
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
@@ -41,8 +41,8 @@ RUN apt-get update \
     && if getent group "${USER_GID}" >/dev/null; then groupmod --new-name "${USERNAME}" "$(getent group "${USER_GID}" | cut -d: -f1)"; else groupadd --gid "${USER_GID}" "${USERNAME}"; fi \
     && if getent passwd "${USER_UID}" >/dev/null; then usermod --login "${USERNAME}" --home "/home/${USERNAME}" --move-home "$(getent passwd "${USER_UID}" | cut -d: -f1)"; else useradd --uid "${USER_UID}" --gid "${USER_GID}" -m "${USERNAME}" -s /bin/bash; fi \
     && usermod --gid "${USER_GID}" --shell /bin/bash "${USERNAME}" \
-    && mkdir -p /workspace \
-    && chown -R "${USERNAME}:${USERNAME}" /workspace /usr/local/cargo /usr/local/rustup /usr/local/sdkman \
+    && mkdir -p /workspace /home/${USERNAME}/.cargo/registry /home/${USERNAME}/.cargo/git /home/${USERNAME}/.rustup /home/${USERNAME}/.npm /home/${USERNAME}/target /home/${USERNAME}/.gradle /home/${USERNAME}/.m2 \
+    && chown -R "${USERNAME}:${USERNAME}" /workspace /home/${USERNAME} /usr/local/sdkman \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
@@ -50,3 +50,5 @@ USER ${USERNAME}
 WORKDIR /workspace
 
 CMD ["bash"]
+
+

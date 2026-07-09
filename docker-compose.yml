@@ -10,16 +10,18 @@ services:
     working_dir: /workspace
     environment:
       GRADLE_USER_HOME: /home/dev/.gradle
+      CARGO_HOME: /home/dev/.cargo
+      CARGO_TARGET_DIR: /home/dev/target
+      NPM_CONFIG_CACHE: /home/dev/.npm
     ports:
       - "8080:8080"
       - "5173:5173"
       - "4173:4173"
     volumes:
       - .:/workspace
-      - cargo-cache:/usr/local/cargo/registry
-      - cargo-git-cache:/usr/local/cargo/git
-      - target-cache:/workspace/target
-      - node-cache:/workspace/apps/web/node_modules
+      - cargo-cache:/home/dev/.cargo/registry
+      - cargo-git-cache:/home/dev/.cargo/git
+      - target-cache:/home/dev/target
       - gradle-cache:/home/dev/.gradle
       - m2-cache:/home/dev/.m2
     tty: true
@@ -29,6 +31,7 @@ volumes:
   cargo-cache:
   cargo-git-cache:
   target-cache:
-  node-cache:
   gradle-cache:
   m2-cache:
+
+
