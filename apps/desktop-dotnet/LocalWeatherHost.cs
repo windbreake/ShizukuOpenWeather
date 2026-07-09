@@ -305,6 +305,7 @@ public sealed class LocalWeatherHost : IAsyncDisposable
         response.Close();
     }
 
+
     private static async Task<LocationResult[]> SearchLocationResultsAsync(string query, ApiConfig apiConfig, CancellationToken cancellationToken)
     {
         var results = new List<LocationResult>();
@@ -875,13 +876,4 @@ public sealed class LocalWeatherHost : IAsyncDisposable
     private sealed record ApiConfig(string ProviderName, bool UseCustomApi, string GeocodingUrl, string WeatherUrl, string AirQualityUrl, string ApiKey, string ApiKeyParam, string QweatherApiKey, string QweatherCredentialId);
     private sealed record AlertPayload(string Id, string Title, string Severity, string Kind, string Detail);
 }
-
-
-
-
-
-
-
-
-
 

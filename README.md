@@ -1,125 +1,114 @@
 # ShizukuOpenWeather
 
-Desktop-first weather visualization app with a Rust weather core, Java/Kotlin API, Vue 3 web UI, SQLite cache, and CLI.
+Desktop-first weather app with an Overdrop-inspired dashboard, a .NET 10 desktop shell, Vue 3 UI, Rust weather core, Java/Kotlin service layer, and SQLite local cache.
 
-## Scope
+## Current stack
 
-- Desktop web dashboard first; mobile support is intentionally deferred.
-- No login, registration, roles, sessions, or cloud account system.
-- Default weather provider: Open-Meteo.
-- Local SQLite cache and local preferences.
-- CLI support for search, weather query, TUI, and opening the web dashboard.
+- Desktop shell: `.NET 10` WinForms + WebView2
+- UI: `Vue 3` + `TypeScript`
+- Weather data: `QWeather`
+- Location search and reverse geocoding: `AMap Web API`
+- Cache and local settings: `SQLite`
+- Core and CLI: `Rust`
+- Service and integration layer: `Java` / `Kotlin`
+- Map tiles: `OpenStreetMap`
 
-## Project Structure
+## What ships today
+
+- PC-first desktop weather dashboard
+- Multi-location sidebar tiles with sync state
+- County-level search in China and overseas location lookup
+- Current conditions, hourly trend, weekly forecast, AQI, alerts, radar, and map
+- Local settings for layout, glass effect, background image, weather API, and card visibility
+- Portable desktop build and Windows installer build
+
+Mobile adaptation is intentionally left as follow-up work.
+
+## Project structure
 
 ```text
 ShizukuOpenWeather/
+├── .github/workflows/               # CI/CD workflows, including devcontainer validation and Windows release packaging
 ├── apps/
 │   ├── api/                         # Java/Kotlin Spring Boot backend API
-│   │   ├── src/main/kotlin/          # Kotlin application, controllers, services
-│   │   ├── src/main/java/            # Java DTOs and shared backend models
-│   │   ├── src/main/resources/       # application config and SQLite schema
-│   │   └── build.gradle.kts
-│   └── web/                         # Vue 3 + TypeScript desktop web UI
-│       ├── public/
-│       ├── src/
-│       │   ├── api/                 # API clients
-│       │   ├── components/          # Weather dashboard components
-│       │   ├── composables/         # UI/data hooks
-│       │   ├── stores/              # Pinia stores
-│       │   ├── styles/              # Tokens, themes, app CSS
-│       │   └── types/               # TypeScript contracts
-│       ├── package.json
-│       └── vite.config.ts
+│   ├── desktop-dotnet/              # .NET 10 desktop shell, local host bridge, installer assets
+│   └── web/                         # Vue 3 + TypeScript desktop weather dashboard
 ├── crates/
-│   ├── weather-core/                # Rust core: providers, normalization, SQLite cache
-│   └── weather-cli/                 # Rust CLI/TUI: search/query/open/launch
+│   ├── weather-core/                # Rust core models, providers, cache contracts
+│   └── weather-cli/                 # Rust CLI / launcher surface
 ├── data/                            # Local development SQLite data
-├── docs/
-│   ├── api/                         # REST contracts
-│   ├── architecture/                # System and platform architecture
-│   ├── cli/                         # CLI/TUI design
-│   ├── data/                        # SQLite schema and cache model
-│   └── ui/                          # Desktop Overdrop-inspired UI spec
-├── scripts/                         # Development helper scripts
-├── Dockerfile                       # Development container image
-├── docker-compose.yml               # Containerized dev environment
-├── Cargo.toml                       # Rust workspace
-├── settings.gradle.kts              # Gradle root settings
-├── build.gradle.kts                 # Gradle orchestration tasks
+├── docs/                            # Architecture, API, data, and UI docs
+├── scripts/                         # Development and packaging scripts
+├── Dockerfile
+├── docker-compose.yml
+├── Cargo.toml
+├── build.gradle.kts
 └── README.md
 ```
 
-## Development
+## Local development
 
-### Local Development on Windows
-
-Recommended host toolchain:
+Recommended Windows toolchain:
 
 - JDK 21
-- Gradle 8+
 - Node.js 22+
-- Rust toolchain (`rustc`, `cargo`, `clippy`, `rustfmt`)
-- Kotlin compiler (`kotlinc`)
+- Rust toolchain
 - SQLite3 CLI
+- .NET 10 SDK
+- Inno Setup 6 for installer packaging
 
-These scripts use gradlew.bat when it exists; otherwise they fall back to the system gradle command.
-
-Validate the local toolchain:
+Check the local environment:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts/check-dev-env.ps1
 ```
 
-Run the backend and frontend in separate terminals:
+Run API and web development servers:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts/dev-api.ps1
 powershell -ExecutionPolicy Bypass -File scripts/dev-web.ps1
 ```
 
-Or start both in the background with log files under `%TEMP%\\shizuku-open-weather`:
+Start the existing combined development flow:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts/start-dev.ps1
 ```
 
-Build the full workspace locally:
+Build the Rust, web, and backend workspace:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts/build-all.ps1
 ```
 
-Local host ports:
+Build the Windows desktop publish output and installer:
 
-- API: http://127.0.0.1:8080
-- Web dev server: http://127.0.0.1:5173
-- Web preview server: http://127.0.0.1:4173
-
-### Container Development and CI/CD
-
-The existing container path is still the source of truth for CI/CD and devcontainer validation.
-
-```bash
-docker compose up -d --build
-docker compose exec dev bash
-gradle checkDevEnvironment
-scripts/start-dev.sh
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/build-desktop-installer.ps1 -Version 0.1.0
 ```
 
-GitHub Actions continues to use `.devcontainer/devcontainer.json` and `.github/workflows/devcontainer-ci-cd.yml` to validate and publish the devcontainer image. If this folder was copied out of a container without `.git` metadata, reconnect it to the original repository before relying on push-triggered CI.
+## Desktop packaging
 
-Legacy Compose users can replace `docker compose` with `docker-compose`.
+The desktop packaging flow produces:
 
-## Planned Commands
+- `ShizukuWeatherDesktop.exe` self-contained desktop app
+- `ShizukuOpenWeather-Setup-<version>.exe` Windows installer
+- optional portable zip artifact for release upload
 
-```bash
-weather search 沈阳
-weather summary 沈阳
-weather current 沈阳
-weather tui
-weather serve
-weather open 沈阳
-weather launch 沈阳
-```
+The installer uses the same app icon as the desktop executable, installs under the current user profile by default, and creates Start Menu and optional Desktop shortcuts.
 
+## CI/CD
+
+The original container-based validation chain stays in place:
+
+- `.devcontainer/devcontainer.json`
+- `.github/workflows/devcontainer-ci-cd.yml`
+
+That path remains the source of truth for devcontainer validation and the shared Linux-oriented checks.
+
+For Windows desktop packaging and release assets, the repository also includes a dedicated Windows workflow:
+
+- `.github/workflows/desktop-release.yml`
+
+This keeps the existing CI/CD path intact while giving the desktop app its own release packaging lane.

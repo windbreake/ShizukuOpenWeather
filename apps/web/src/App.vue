@@ -49,6 +49,7 @@ type CardKey = 'alerts' | 'details' | 'hourly' | 'aqi' | 'radar' | 'weekly'
 type SettingsPane = 'general' | 'data' | 'alerts' | 'appearance'
 type TimeFormatKey = '24h' | '12h'
 type DateFormatKey = 'dd/mm/yyyy' | 'yyyy-mm-dd' | 'mm/dd/yyyy'
+type SidebarSyncState = 'idle' | 'loading' | 'ready' | 'error'
 
 type UiSettings = {
   frostEnabled: boolean
@@ -155,6 +156,7 @@ const cardMeta: Array<{ key: CardKey; label: string }> = [
 
 const weather = ref<WeatherSummary | null>(null)
 const sidebarWeather = ref<Record<string, WeatherSummary>>({})
+const sidebarSyncState = ref<Record<string, SidebarSyncState>>({})
 const loading = ref(true)
 const errorMessage = ref('')
 const selectedMetric = ref<HourlyMetricKey>('temperature')
@@ -229,9 +231,11 @@ const activeRadarLayer = computed(() => radarLayers.find((item) => item.key === 
 const sidebarTiles = computed(() => savedLocations.value.map((location) => {
   const tileWeather = sidebarWeather.value[location.key]
   const iconKey = tileWeather?.backgroundKey ?? tileWeather?.hourly[0]?.icon ?? 'mixed'
+  const state = sidebarSyncState.value[location.key] ?? 'idle'
   return {
     location,
     weather: tileWeather,
+    state,
     iconUrl: getWeatherIconUrl(tileWeather?.currentIconCode ?? tileWeather?.hourly[0]?.iconCode, iconKey),
     selected: selectedLocation.value.key === location.key,
   }
@@ -444,21 +448,42 @@ function loadSavedLocations(): LocationSearchResult[] {
   try {
     const parsed = JSON.parse(raw)
     if (!Array.isArray(parsed) || !parsed.length) return [...defaultLocations]
-    return parsed.filter(isLocationSearchResult)
+    const normalized = parsed
+      .map(normalizeLocationSearchResult)
+      .filter((value): value is LocationSearchResult => value !== null)
+    return normalized.length ? normalized : [...defaultLocations]
   } catch {
     return [...defaultLocations]
   }
 }
 
-function isLocationSearchResult(value: unknown): value is LocationSearchResult {
-  if (!value || typeof value !== 'object') return false
+function normalizeLocationSearchResult(value: unknown): LocationSearchResult | null {
+  if (!value || typeof value !== 'object') return null
   const target = value as Record<string, unknown>
-  return typeof target.key === 'string'
-    && typeof target.label === 'string'
-    && typeof target.subtitle === 'string'
-    && typeof target.lat === 'number'
-    && typeof target.lon === 'number'
-    && (target.adcode === undefined || typeof target.adcode === 'string')
+  const key = typeof target.key === 'string' ? target.key : ''
+  const label = typeof target.label === 'string'
+    ? target.label
+    : typeof target.name === 'string'
+      ? target.name
+      : ''
+  const subtitle = typeof target.subtitle === 'string'
+    ? target.subtitle
+    : typeof target.regionName === 'string'
+      ? target.regionName
+      : typeof target.region === 'string'
+        ? target.region
+        : ''
+  const lat = typeof target.lat === 'number' ? target.lat : Number(target.lat)
+  const lon = typeof target.lon === 'number' ? target.lon : Number(target.lon)
+  const adcode = typeof target.adcode === 'string' ? target.adcode : undefined
+
+  if (!key || !label || !subtitle || Number.isNaN(lat) || Number.isNaN(lon)) return null
+
+  return { key, label, subtitle, lat, lon, adcode }
+}
+
+function isLocationSearchResult(value: unknown): value is LocationSearchResult {
+  return normalizeLocationSearchResult(value) !== null
 }
 
 async function syncWeatherFeed() {
@@ -468,6 +493,7 @@ async function syncWeatherFeed() {
 async function loadWeather() {
   loading.value = true
   errorMessage.value = ''
+  sidebarSyncState.value[selectedLocation.value.key] = 'loading'
 
   try {
     const summary = await getWeatherSummary(
@@ -479,11 +505,13 @@ async function loadWeather() {
     )
     weather.value = summary
     sidebarWeather.value[selectedLocation.value.key] = summary
+    sidebarSyncState.value[selectedLocation.value.key] = 'ready'
     if (!expandedDayKey.value && summary.daily.length) {
       expandedDayKey.value = dailyKey(summary.daily[0])
     }
   } catch (error) {
     weather.value = null
+    sidebarSyncState.value[selectedLocation.value.key] = 'error'
     errorMessage.value = error instanceof Error ? error.message : 'Unknown request error'
   } finally {
     loading.value = false
@@ -493,10 +521,13 @@ async function loadWeather() {
 async function hydrateSidebarWeather() {
   const entries = await Promise.all(
     savedLocations.value.map(async (location) => {
+      sidebarSyncState.value[location.key] = 'loading'
       try {
         const summary = await getWeatherSummary(location.lat, location.lon, location.label, location.subtitle, apiConfig.value, location.adcode)
+        sidebarSyncState.value[location.key] = 'ready'
         return [location.key, summary] as const
       } catch {
+        sidebarSyncState.value[location.key] = 'error'
         return null
       }
     }),
@@ -984,8 +1015,8 @@ onUnmounted(() => {
                     <img class="weather-icon weather-icon-tile" :src="tile.iconUrl" alt="" />
                   </div>
                   <div class="saved-weather-meta">
-                    <p class="saved-weather-temp">{{ tile.weather ? `${Math.round(tile.weather.currentTemp)}°` : '--' }}</p>
-                    <p class="saved-weather-copy">{{ tile.weather?.description ?? '同步中' }}</p>
+                    <p class="saved-weather-temp">{{ tile.weather ? `${Math.round(tile.weather.currentTemp)}°` : tile.state === 'error' ? '!!' : '--' }}</p>
+                    <p class="saved-weather-copy">{{ tile.weather?.description ?? (tile.state === 'error' ? '同步失败' : tile.state === 'loading' ? '同步中' : '等待同步') }}</p>
                   </div>
                 </button>
               </div>

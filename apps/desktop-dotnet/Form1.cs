@@ -9,6 +9,7 @@ public partial class Form1 : Form
     public Form1()
     {
         InitializeComponent();
+        Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
     }
 
     protected override async void OnShown(EventArgs e)
@@ -71,7 +72,4 @@ public partial class Form1 : Form
         statusLabel.Text = $"载入失败: {e.WebErrorStatus}";
         statusLabel.Visible = true;
     }
-
-
 }
-
