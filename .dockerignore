@@ -1,0 +1,11 @@
+.git
+.gradle
+node_modules
+target
+dist
+build
+.idea
+.vscode
+*.db
+*.sqlite
+*.sqlite3

@@ -1,0 +1,34 @@
+name: shizuku-open-weather-dev
+
+services:
+  dev:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: shizuku-open-weather-dev:latest
+    network_mode: bridge
+    working_dir: /workspace
+    environment:
+      GRADLE_USER_HOME: /home/dev/.gradle
+    ports:
+      - "8080:8080"
+      - "5173:5173"
+      - "4173:4173"
+    volumes:
+      - .:/workspace
+      - cargo-cache:/usr/local/cargo/registry
+      - cargo-git-cache:/usr/local/cargo/git
+      - target-cache:/workspace/target
+      - node-cache:/workspace/apps/web/node_modules
+      - gradle-cache:/home/dev/.gradle
+      - m2-cache:/home/dev/.m2
+    tty: true
+    stdin_open: true
+
+volumes:
+  cargo-cache:
+  cargo-git-cache:
+  target-cache:
+  node-cache:
+  gradle-cache:
+  m2-cache:

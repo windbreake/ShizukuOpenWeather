@@ -1,0 +1,19 @@
+{
+  "name": "ShizukuOpenWeather",
+  "dockerComposeFile": "../docker-compose.yml",
+  "service": "dev",
+  "workspaceFolder": "/workspace",
+  "remoteUser": "dev",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "Vue.volar",
+        "rust-lang.rust-analyzer",
+        "vscjava.vscode-java-pack",
+        "fwcd.kotlin",
+        "ms-vscode.vscode-typescript-next",
+        "alexcvzz.vscode-sqlite"
+      ]
+    }
+  }
+}
