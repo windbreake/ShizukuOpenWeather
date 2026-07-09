@@ -249,13 +249,26 @@ public sealed class LocalWeatherHost : IAsyncDisposable
         return new ApiConfig(
             (request.QueryString["providerName"] ?? "高德定位 · 和风天气").Trim(),
             string.Equals(request.QueryString["useCustomApi"], "true", StringComparison.OrdinalIgnoreCase),
-            (request.QueryString["geocodingUrl"] ?? "https://restapi.amap.com/v3/assistant/inputtips").Trim(),
-            (request.QueryString["weatherUrl"] ?? "https://pw5egntnvw.re.qweatherapi.com").Trim(),
-            (request.QueryString["airQualityUrl"] ?? string.Empty).Trim(),
-            (request.QueryString["apiKey"] ?? string.Empty).Trim(),
-            (request.QueryString["apiKeyParam"] ?? "key").Trim(),
-            (request.QueryString["qweatherApiKey"] ?? "dcab85b9b77442d5a9375cc5d0ccaba1").Trim(),
-            (request.QueryString["qweatherCredentialId"] ?? "KDGWMUR5WX").Trim());
+            FirstNonEmpty(request.QueryString["geocodingUrl"], Environment.GetEnvironmentVariable("SHIZUKU_GEOCODING_URL"), "https://restapi.amap.com/v3/assistant/inputtips"),
+            FirstNonEmpty(request.QueryString["weatherUrl"], Environment.GetEnvironmentVariable("SHIZUKU_QWEATHER_API_HOST")),
+            FirstNonEmpty(request.QueryString["airQualityUrl"], Environment.GetEnvironmentVariable("SHIZUKU_QWEATHER_AIR_QUALITY_HOST")),
+            FirstNonEmpty(request.QueryString["apiKey"], Environment.GetEnvironmentVariable("SHIZUKU_AMAP_API_KEY")),
+            FirstNonEmpty(request.QueryString["apiKeyParam"], Environment.GetEnvironmentVariable("SHIZUKU_AMAP_API_KEY_PARAM"), "key"),
+            FirstNonEmpty(request.QueryString["qweatherApiKey"], Environment.GetEnvironmentVariable("SHIZUKU_QWEATHER_API_KEY")),
+            FirstNonEmpty(request.QueryString["qweatherCredentialId"], Environment.GetEnvironmentVariable("SHIZUKU_QWEATHER_CREDENTIAL_ID")));
+    }
+
+    private static string FirstNonEmpty(params string?[] values)
+    {
+        foreach (var value in values)
+        {
+            if (!string.IsNullOrWhiteSpace(value))
+            {
+                return value.Trim();
+            }
+        }
+
+        return string.Empty;
     }
 
     private static string BuildUrl(string baseUrl, Dictionary<string, string> parameters, ApiConfig apiConfig)
@@ -393,6 +406,10 @@ public sealed class LocalWeatherHost : IAsyncDisposable
     {
         try
         {
+            if (string.IsNullOrWhiteSpace(apiConfig.WeatherUrl) || string.IsNullOrWhiteSpace(apiConfig.QweatherApiKey))
+            {
+                return BuildFallbackSummary(lat, lon, locationName, regionName);
+            }
             var locationQuery = string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{lon},{lat}");
             var nowUrl = BuildQWeatherUrl(apiConfig.WeatherUrl, "v7/weather/now", new Dictionary<string, string?>
             {
@@ -876,4 +893,6 @@ public sealed class LocalWeatherHost : IAsyncDisposable
     private sealed record ApiConfig(string ProviderName, bool UseCustomApi, string GeocodingUrl, string WeatherUrl, string AirQualityUrl, string ApiKey, string ApiKeyParam, string QweatherApiKey, string QweatherCredentialId);
     private sealed record AlertPayload(string Id, string Title, string Severity, string Kind, string Detail);
 }
+
+
 

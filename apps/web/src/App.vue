@@ -390,12 +390,12 @@ function defaultUiSettings(): UiSettings {
     useCustomApi: true,
     apiProviderName: '高德定位 · 和风天气',
     geocodingBaseUrl: 'https://restapi.amap.com/v3/assistant/inputtips',
-    weatherBaseUrl: 'https://pw5egntnvw.re.qweatherapi.com',
+    weatherBaseUrl: '',
     airQualityBaseUrl: '',
-    apiKey: '31670448a0c460676d46bab3c12c72be',
+    apiKey: '',
     apiKeyParam: 'key',
-    qweatherApiKey: 'dcab85b9b77442d5a9375cc5d0ccaba1',
-    qweatherCredentialId: 'KDGWMUR5WX',
+    qweatherApiKey: '',
+    qweatherCredentialId: '',
     weatherGifUrls: createDefaultGifUrls(),
     visibleCards: {
       alerts: true,
@@ -1242,7 +1242,7 @@ onUnmounted(() => {
               </label>
               <label class="setting-field">
                 <span>和风 API Host</span>
-                <input v-model="uiSettings.weatherBaseUrl" type="text" placeholder="https://xxxx.re.qweatherapi.com" />
+                <input v-model="uiSettings.weatherBaseUrl" type="text" placeholder="https://你的和风 API Host" />
               </label>
               <label class="setting-field">
                 <span>空气质量接口</span>
@@ -1251,7 +1251,7 @@ onUnmounted(() => {
               <div class="setting-field-grid">
                 <label class="setting-field">
                   <span>高德 Key</span>
-                  <input v-model="uiSettings.apiKey" type="text" placeholder="用于地区检索" />
+                  <input v-model="uiSettings.apiKey" type="password" placeholder="用于地区检索，不会提交到仓库" autocomplete="off" />
                 </label>
                 <label class="setting-field">
                   <span>Key 参数名</span>
@@ -1261,11 +1261,11 @@ onUnmounted(() => {
               <div class="setting-field-grid">
                 <label class="setting-field">
                   <span>和风 API Key</span>
-                  <input v-model="uiSettings.qweatherApiKey" type="text" placeholder="用于天气实况与预报" />
+                  <input v-model="uiSettings.qweatherApiKey" type="password" placeholder="用于天气实况与预报，不会提交到仓库" autocomplete="off" />
                 </label>
                 <label class="setting-field">
                   <span>和风凭据 ID</span>
-                  <input v-model="uiSettings.qweatherCredentialId" type="text" placeholder="可留空" />
+                  <input v-model="uiSettings.qweatherCredentialId" type="password" placeholder="可留空" autocomplete="off" />
                 </label>
               </div>
             </section>
@@ -1377,6 +1377,7 @@ onUnmounted(() => {
     </div>
   </main>
 </template>
+
 
 
 
