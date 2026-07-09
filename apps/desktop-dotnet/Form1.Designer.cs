@@ -9,7 +9,6 @@ partial class Form1
     private System.ComponentModel.IContainer? components = null;
     private Panel chromeBar = null!;
     private Label titleLabel = null!;
-    private Button refreshButton = null!;
     private Label statusLabel = null!;
     private WebView2 weatherView = null!;
 
@@ -28,7 +27,6 @@ partial class Form1
         components = new System.ComponentModel.Container();
         chromeBar = new Panel();
         titleLabel = new Label();
-        refreshButton = new Button();
         statusLabel = new Label();
         weatherView = new WebView2();
         chromeBar.SuspendLayout();
@@ -39,7 +37,6 @@ partial class Form1
         // 
         chromeBar.BackColor = Color.FromArgb(232, 240, 252);
         chromeBar.Controls.Add(titleLabel);
-        chromeBar.Controls.Add(refreshButton);
         chromeBar.Dock = DockStyle.Top;
         chromeBar.Location = new Point(0, 0);
         chromeBar.Name = "chromeBar";
@@ -105,4 +102,6 @@ partial class Form1
         PerformLayout();
     }
 }
+
+
 
