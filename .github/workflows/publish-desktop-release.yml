@@ -1,0 +1,47 @@
+name: Publish Desktop Release
+
+on:
+  push:
+    branches: [codex/android-app]
+    paths: [.github/workflows/publish-desktop-release.yml]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Release version without leading v
+        required: true
+        default: 0.1.0
+
+permissions:
+  contents: write
+
+env:
+  RELEASE_VERSION: ${{ inputs.version || '0.1.0' }}
+  RELEASE_TAG: v${{ inputs.version || '0.1.0' }}
+
+jobs:
+  desktop:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: choco install innosetup --no-progress -y
+      - shell: pwsh
+        run: powershell -ExecutionPolicy Bypass -File scripts/build-desktop-installer.ps1 -Version "${{ env.RELEASE_VERSION }}" -ArtifactDir "$env:RUNNER_TEMP\desktop-release"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: desktop-release-${{ env.RELEASE_VERSION }}
+          path: ${{ runner.temp }}\desktop-release
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.RELEASE_TAG }}
+          target_commitish: codex/android-app
+          name: ShizukuOpenWeather ${{ env.RELEASE_TAG }}
+          make_latest: true
+          files: |
+            ${{ runner.temp }}\desktop-release\ShizukuOpenWeather-Setup-${{ env.RELEASE_VERSION }}.exe
+            ${{ runner.temp }}\desktop-release\ShizukuOpenWeather-portable-${{ env.RELEASE_VERSION }}.zip
