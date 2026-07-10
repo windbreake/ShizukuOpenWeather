@@ -23,6 +23,7 @@ The project has already been moved out of its original container-only developmen
 The active delivery path in this repository currently centers on:
 
 - `.NET 10` desktop shell
+- Native Android app with `Kotlin + Jetpack Compose`
 - `Vue 3 + TypeScript` desktop UI
 - `Java / Kotlin` networking and service integration
 - `SQLite` local cache and preferences storage
@@ -31,12 +32,12 @@ The repository still contains some Rust workspace files and folders such as `cra
 
 ## Project Goals
 
-- Desktop-first weather dashboard and multi-location management
+- Windows and Android weather dashboard with multi-location management
 - Modern UI, card-based information design, and customizable appearance
 - Local-first usage without accounts, cloud sync, or heavy deployment requirements
 - Multi-language extensibility for future desktop and mobile packaging targets
 
-The current focus is PC. Mobile adaptation is intentionally left for future work.
+The native Android app is now part of the active development path while the desktop delivery remains intact.
 
 ## Current Features
 
@@ -47,6 +48,8 @@ The current focus is PC. Mobile adaptation is intentionally left for future work
 - Custom background, frosted glass effect, card visibility, and layout preferences
 - Local SQLite cache and local settings storage
 - Windows desktop app, portable package, and installer output
+- Native Android dashboard, location search, settings, and auto-hiding glass navigation
+- Free Open-Meteo defaults with optional QWeather and AMap configuration
 
 ## Tech Stack
 
@@ -54,14 +57,16 @@ The current focus is PC. Mobile adaptation is intentionally left for future work
 
 - `Vue 3` + `TypeScript`
 - `Vite`
+- `Kotlin` + `Jetpack Compose`
 - `.NET 10` WinForms + `WebView2`
 - `Java / Kotlin`
 - `SQLite`
 
 ### Data Sources
 
-- Weather data: `QWeather`
-- Geocoding and location search: `AMap Web API`
+- Default Android weather and geocoding: `Open-Meteo`
+- Optional weather provider: `QWeather`
+- Optional geocoding provider: `AMap Web API`
 - Map tiles: `OpenStreetMap`
 
 ### Legacy / Reserved Modules
@@ -78,6 +83,7 @@ ShizukuOpenWeather/
 │   ├── api/                         # Java / Kotlin backend services
 │   ├── desktop-dotnet/              # .NET 10 desktop shell, local host bridge, installer assets
 │   └── web/                         # Vue 3 + TypeScript desktop weather UI
+│   ├── android/                     # Kotlin + Jetpack Compose Android app
 ├── crates/                          # Legacy Rust workspace modules
 ├── data/                            # Local development data
 ├── docs/                            # Architecture, API, data, and UI docs
@@ -99,6 +105,8 @@ ShizukuOpenWeather/
 - Inno Setup 6 for Windows installer packaging
 
 ### Validate the environment
+- Android Studio or Android SDK 35
+- Gradle 8.9
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts/check-dev-env.ps1
@@ -120,6 +128,20 @@ powershell -ExecutionPolicy Bypass -File scripts/start-dev.ps1
 ## Windows Desktop Packaging
 
 The repository already supports complete desktop output, including application icon wiring, installer icon wiring, and release asset packaging.
+## Android Build
+
+The Android project lives in `apps/android`. Open-Meteo works without a bundled key. Optional QWeather and AMap credentials are entered in the settings screen and encrypted locally with Android Keystore.
+
+```powershell
+gradle :apps:android:testDebugUnitTest :apps:android:assembleDebug
+```
+
+APK output:
+
+```text
+apps/android/build/outputs/apk/debug/android-debug.apk
+```
+
 
 ### Build the desktop app and installer
 
@@ -147,6 +169,12 @@ The following path remains in place as the shared validation and devcontainer fo
 - `.github/workflows/devcontainer-ci-cd.yml`
 
 ### Windows desktop release path
+
+### Android build and release path
+
+- `.github/workflows/android.yml`
+
+This workflow runs Android unit tests, builds the APK, uploads a CI artifact, and appends the APK to tagged GitHub Releases.
 
 The repository also includes a dedicated Windows desktop packaging workflow:
 

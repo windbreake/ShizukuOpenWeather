@@ -64,3 +64,9 @@ tasks.register("buildAll") {
     group = "build"
     dependsOn("buildRust", "buildWeb", ":apps:api:build")
 }
+
+tasks.register("buildAndroid") {
+    group = "build"
+    description = "Builds the Android debug APK."
+    dependsOn(":apps:android:assembleDebug")
+}
