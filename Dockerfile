@@ -35,7 +35,7 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends nodejs \
     && npm install -g npm@latest typescript vue-tsc create-vue \
     && curl -s https://get.sdkman.io | bash \
-    && bash -lc 'source /usr/local/sdkman/bin/sdkman-init.sh && sdk install gradle && sdk install kotlin' \
+    && bash -lc 'source /usr/local/sdkman/bin/sdkman-init.sh && sdk install gradle 8.9 && sdk install kotlin' \
     && curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --no-modify-path --profile default \
     && rustup component add rustfmt clippy \
     && if getent group "${USER_GID}" >/dev/null; then groupmod --new-name "${USERNAME}" "$(getent group "${USER_GID}" | cut -d: -f1)"; else groupadd --gid "${USER_GID}" "${USERNAME}"; fi \

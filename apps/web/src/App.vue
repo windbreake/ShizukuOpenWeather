@@ -635,6 +635,16 @@ function formatDateLabel(day: DailyForecastPoint) {
   return `${dd}/${mm}/${yyyy}`
 }
 
+function formatDailyPrecipitation(day: DailyForecastPoint) {
+  if (day.precipitationChance !== null && Number.isFinite(day.precipitationChance)) {
+    return `降雨概率 ${Math.round(day.precipitationChance)}%`
+  }
+  if (day.precipitationAmountMm !== null && day.precipitationAmountMm !== undefined) {
+    return `预计降水 ${day.precipitationAmountMm.toFixed(1)} mm`
+  }
+  return '暂无降水数据'
+}
+
 function alertSeverityLabel(alert: WeatherAlert) {
   if (alert.severity === 'warning') return '预警'
   if (alert.severity === 'watch') return '关注'
@@ -966,7 +976,7 @@ onUnmounted(() => {
                       <img class="weather-icon weather-icon-daily" :src="getWeatherIconUrl(day.iconCode, day.icon)" alt="" />
                       <div>
                         <p class="daily-title">{{ day.dayLabel }} {{ formatDateLabel(day) }}</p>
-                        <p class="daily-subtitle">预计降水 {{ day.precipitationChance }} mm</p>
+                        <p class="daily-subtitle">{{ formatDailyPrecipitation(day) }}</p>
                       </div>
                     </div>
                     <div class="daily-actions">
@@ -978,7 +988,7 @@ onUnmounted(() => {
                     <p class="daily-expand-copy">{{ day.conditionLabel }}</p>
                     <div class="daily-expand-metrics">
                       <span>风速 {{ day.windSpeedKph }} km/h</span>
-                      <span>预计降水 {{ day.precipitationChance }} mm</span>
+                      <span>{{ formatDailyPrecipitation(day) }}</span>
                     </div>
                   </div>
                 </article>

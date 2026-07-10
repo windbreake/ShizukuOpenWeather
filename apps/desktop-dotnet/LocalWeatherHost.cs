@@ -1,6 +1,8 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Sockets;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 
@@ -158,7 +160,24 @@ public sealed class LocalWeatherHost : IAsyncDisposable
         }
         catch (Exception error)
         {
-            await WriteJsonAsync(context.Response, new { error = error.Message }, HttpStatusCode.InternalServerError);
+            var requestPath = context.Request.Url?.AbsolutePath ?? "/";
+            LogHostError(requestPath, error);
+            var statusCode = error switch
+            {
+                UriFormatException or ArgumentException => HttpStatusCode.BadRequest,
+                TaskCanceledException => HttpStatusCode.GatewayTimeout,
+                HttpRequestException => HttpStatusCode.BadGateway,
+                _ => HttpStatusCode.InternalServerError,
+            };
+
+            try
+            {
+                await WriteJsonAsync(context.Response, new { error = error.Message }, statusCode);
+            }
+            catch
+            {
+                context.Response.Abort();
+            }
         }
     }
 
@@ -171,7 +190,7 @@ public sealed class LocalWeatherHost : IAsyncDisposable
             return;
         }
 
-        var cacheKey = $"search:{query.ToLowerInvariant()}:{apiConfig.ProviderName}:{apiConfig.GeocodingUrl}";
+        var cacheKey = $"search:{query.ToLowerInvariant()}:{BuildApiCacheFingerprint(apiConfig)}";
         var cachedPayload = await _cache.GetAsync(cacheKey, _cts.Token);
         if (cachedPayload is not null)
         {
@@ -179,7 +198,24 @@ public sealed class LocalWeatherHost : IAsyncDisposable
             return;
         }
 
-        var payload = await SearchLocationResultsAsync(query, apiConfig, _cts.Token);
+        LocationResult[] payload;
+        try
+        {
+            payload = await SearchLocationResultsAsync(query, apiConfig, _cts.Token);
+        }
+        catch (Exception error) when (
+            error is not OperationCanceledException
+            && !apiConfig.GeocodingUrl.Contains("open-meteo.com", StringComparison.OrdinalIgnoreCase))
+        {
+            LogHostError("location-search-primary", error);
+            var fallbackConfig = apiConfig with
+            {
+                GeocodingUrl = "https://geocoding-api.open-meteo.com/v1/search",
+                ApiKey = string.Empty,
+            };
+            payload = await SearchLocationResultsAsync(query, fallbackConfig, _cts.Token);
+        }
+
         var json = JsonSerializer.Serialize(payload, JsonOptions);
         await _cache.SetAsync(cacheKey, json, TimeSpan.FromHours(12), _cts.Token);
         await WriteJsonStringAsync(response, json);
@@ -187,11 +223,11 @@ public sealed class LocalWeatherHost : IAsyncDisposable
 
     private async Task HandleSummaryAsync(HttpListenerRequest request, HttpListenerResponse response, ApiConfig apiConfig)
     {
-        var lat = ParseDouble(request.QueryString["lat"], 41.8057);
-        var lon = ParseDouble(request.QueryString["lon"], 123.4315);
+        var lat = ParseCoordinate(request.QueryString["lat"], "lat", -90d, 90d);
+        var lon = ParseCoordinate(request.QueryString["lon"], "lon", -180d, 180d);
         var locationName = request.QueryString["locationName"];
         var regionName = request.QueryString["regionName"];
-        var cacheKey = $"summary:{Math.Round(lat, 4):F4}:{Math.Round(lon, 4):F4}:{apiConfig.ProviderName}:{locationName}:{regionName}";
+        var cacheKey = $"summary:{Math.Round(lat, 4):F4}:{Math.Round(lon, 4):F4}:{locationName}:{regionName}:{BuildApiCacheFingerprint(apiConfig)}";
 
         var cachedPayload = await _cache.GetAsync(cacheKey, _cts.Token);
         if (cachedPayload is not null)
@@ -214,7 +250,15 @@ public sealed class LocalWeatherHost : IAsyncDisposable
 
         var payload = await BuildWeatherSummaryAsync(lat, lon, locationName, regionName, apiConfig, _cts.Token);
         var json = payload.ToJsonString(JsonOptions);
-        await _cache.SetAsync(cacheKey, json, TimeSpan.FromMinutes(30), _cts.Token);
+        var source = payload["source"]?.ToString();
+        if (!string.Equals(source, "fallback", StringComparison.OrdinalIgnoreCase))
+        {
+            var usingProviderFallback =
+                string.Equals(source, "Open-Meteo", StringComparison.OrdinalIgnoreCase)
+                && !string.IsNullOrWhiteSpace(apiConfig.QweatherApiKey);
+            var ttl = usingProviderFallback ? TimeSpan.FromMinutes(5) : TimeSpan.FromMinutes(30);
+            await _cache.SetAsync(cacheKey, json, ttl, _cts.Token);
+        }
         await WriteJsonStringAsync(response, json);
     }
 
@@ -222,11 +266,16 @@ public sealed class LocalWeatherHost : IAsyncDisposable
     {
         var relativePath = requestPath == "/" ? "index.html" : requestPath.TrimStart('/');
         relativePath = relativePath.Replace('/', Path.DirectorySeparatorChar);
-        var candidate = Path.GetFullPath(Path.Combine(_webRoot, relativePath));
+        var normalizedRoot = Path.GetFullPath(_webRoot);
+        var rootPrefix = normalizedRoot.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+            + Path.DirectorySeparatorChar;
+        var candidate = Path.GetFullPath(Path.Combine(normalizedRoot, relativePath));
 
-        if (!candidate.StartsWith(_webRoot, StringComparison.OrdinalIgnoreCase) || !File.Exists(candidate))
+        if ((!candidate.StartsWith(rootPrefix, StringComparison.OrdinalIgnoreCase)
+                && !string.Equals(candidate, normalizedRoot, StringComparison.OrdinalIgnoreCase))
+            || !File.Exists(candidate))
         {
-            candidate = Path.Combine(_webRoot, "index.html");
+            candidate = Path.Combine(normalizedRoot, "index.html");
         }
 
         if (!File.Exists(candidate))
@@ -271,9 +320,25 @@ public sealed class LocalWeatherHost : IAsyncDisposable
         return string.Empty;
     }
 
+    private static string BuildApiCacheFingerprint(ApiConfig apiConfig)
+    {
+        var material = string.Join(
+            "|",
+            apiConfig.ProviderName,
+            apiConfig.UseCustomApi,
+            apiConfig.GeocodingUrl,
+            apiConfig.WeatherUrl,
+            apiConfig.AirQualityUrl,
+            apiConfig.ApiKeyParam,
+            apiConfig.ApiKey,
+            apiConfig.QweatherApiKey,
+            apiConfig.QweatherCredentialId);
+        return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(material)))[..16];
+    }
+
     private static string BuildUrl(string baseUrl, Dictionary<string, string> parameters, ApiConfig apiConfig)
     {
-        var uri = new Uri(baseUrl);
+        var uri = new Uri(NormalizeBaseUrl(baseUrl), UriKind.Absolute);
         var existing = ParseQuery(uri.Query);
         foreach (var entry in parameters)
         {
@@ -332,6 +397,7 @@ public sealed class LocalWeatherHost : IAsyncDisposable
             }, apiConfig);
 
             var geocodeData = await FetchJsonNodeAsync(geocodeUrl, cancellationToken);
+            EnsureAmapSuccess(geocodeData);
             var primary = geocodeData?["geocodes"]?.AsArray()?.FirstOrDefault();
             var primaryLocation = primary?["location"]?.ToString();
             if (!string.IsNullOrWhiteSpace(primaryLocation))
@@ -352,6 +418,7 @@ public sealed class LocalWeatherHost : IAsyncDisposable
             }, apiConfig);
 
             var tipData = await FetchJsonNodeAsync(tipsUrl, cancellationToken);
+            EnsureAmapSuccess(tipData);
             var tips = tipData?["tips"]?.AsArray() ?? [];
             foreach (var item in tips)
             {
@@ -408,7 +475,12 @@ public sealed class LocalWeatherHost : IAsyncDisposable
         {
             if (string.IsNullOrWhiteSpace(apiConfig.WeatherUrl) || string.IsNullOrWhiteSpace(apiConfig.QweatherApiKey))
             {
-                return BuildFallbackSummary(lat, lon, locationName, regionName);
+                return await BuildOpenMeteoOrFallbackAsync(
+                    lat,
+                    lon,
+                    locationName,
+                    regionName,
+                    cancellationToken);
             }
             var locationQuery = string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{lon},{lat}");
             var nowUrl = BuildQWeatherUrl(apiConfig.WeatherUrl, "v7/weather/now", new Dictionary<string, string?>
@@ -436,8 +508,13 @@ public sealed class LocalWeatherHost : IAsyncDisposable
             var nowTask = FetchJsonNodeAsync(nowUrl, cancellationToken, headers);
             var hourlyTask = FetchJsonNodeAsync(hourlyUrl, cancellationToken, headers);
             var dailyTask = FetchJsonNodeAsync(dailyUrl, cancellationToken, headers);
-            var airTask = FetchJsonNodeAsync(airUrl, cancellationToken, headers);
-            await Task.WhenAll(nowTask, hourlyTask, dailyTask, airTask);
+            var airTask = FetchOptionalQWeatherJsonAsync(airUrl, "空气质量", cancellationToken, headers);
+            await Task.WhenAll(nowTask, hourlyTask, dailyTask);
+
+            var nowData = EnsureQWeatherSuccess(await nowTask, "实时天气");
+            var hourlyData = EnsureQWeatherSuccess(await hourlyTask, "逐小时天气");
+            var dailyData = EnsureQWeatherSuccess(await dailyTask, "每日天气");
+            var airData = await airTask;
 
             var warningAlerts = new List<AlertPayload>();
             try
@@ -447,7 +524,9 @@ public sealed class LocalWeatherHost : IAsyncDisposable
                     ["location"] = locationQuery,
                     ["lang"] = "zh",
                 });
-                var warningData = await FetchJsonNodeAsync(warningUrl, cancellationToken, headers);
+                var warningData = EnsureQWeatherSuccess(
+                    await FetchJsonNodeAsync(warningUrl, cancellationToken, headers),
+                    "天气预警");
                 var warningItems = warningData?["warning"]?.AsArray() ?? [];
                 foreach (var item in warningItems)
                 {
@@ -462,15 +541,20 @@ public sealed class LocalWeatherHost : IAsyncDisposable
                         item["text"]?.ToString() ?? typeName));
                 }
             }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
             catch
             {
                 warningAlerts.Clear();
             }
 
-            var current = nowTask.Result?["now"];
-            var hourly = hourlyTask.Result?["hourly"]?.AsArray() ?? [];
-            var daily = dailyTask.Result?["daily"]?.AsArray() ?? [];
-            var airIndex = airTask.Result?["indexes"]?.AsArray()?.FirstOrDefault();
+            var current = nowData?["now"]
+                ?? throw new InvalidDataException("和风天气实时数据缺少 now 字段。");
+            var hourly = hourlyData?["hourly"]?.AsArray() ?? [];
+            var daily = dailyData?["daily"]?.AsArray() ?? [];
+            var airIndex = airData?["indexes"]?.AsArray()?.FirstOrDefault();
             var firstDay = daily.FirstOrDefault();
 
             var aqiValue = (int)Math.Round(ParseDouble(airIndex?["aqi"]?.ToString(), 0d));
@@ -505,7 +589,8 @@ public sealed class LocalWeatherHost : IAsyncDisposable
                     ["isoDate"] = day.IsoDate,
                     ["highTemp"] = ParseDouble(item?["tempMax"]?.ToString(), 0d),
                     ["lowTemp"] = ParseDouble(item?["tempMin"]?.ToString(), 0d),
-                    ["precipitationChance"] = (int)Math.Round(ParseDouble(item?["precip"]?.ToString(), 0d)),
+                    ["precipitationChance"] = null,
+                    ["precipitationAmountMm"] = ParseDouble(item?["precip"]?.ToString(), 0d),
                     ["windSpeedKph"] = (int)Math.Round(ParseDouble(item?["windSpeedDay"]?.ToString(), 0d)),
                     ["icon"] = MapQWeatherGlyph(item?["iconDay"]?.ToString(), item?["textDay"]?.ToString()),
                     ["iconCode"] = item?["iconDay"]?.ToString() ?? "100",
@@ -545,10 +630,195 @@ public sealed class LocalWeatherHost : IAsyncDisposable
                 ["daily"] = new JsonArray(dailyPayload),
             };
         }
-        catch (Exception)
+        catch (OperationCanceledException)
         {
+            throw;
+        }
+        catch (Exception error)
+        {
+            LogHostError("weather-provider", error);
+            return await BuildOpenMeteoOrFallbackAsync(
+                lat,
+                lon,
+                locationName,
+                regionName,
+                cancellationToken);
+        }
+    }
+
+    private static async Task<JsonObject> BuildOpenMeteoOrFallbackAsync(
+        double lat,
+        double lon,
+        string? locationName,
+        string? regionName,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await BuildOpenMeteoSummaryAsync(
+                lat,
+                lon,
+                locationName,
+                regionName,
+                cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception error)
+        {
+            LogHostError("open-meteo-fallback", error);
             return BuildFallbackSummary(lat, lon, locationName, regionName);
         }
+    }
+
+    private static async Task<JsonObject> BuildOpenMeteoSummaryAsync(
+        double lat,
+        double lon,
+        string? locationName,
+        string? regionName,
+        CancellationToken cancellationToken)
+    {
+        var invariant = System.Globalization.CultureInfo.InvariantCulture;
+        var weatherUrl = BuildPublicUrl(
+            "https://api.open-meteo.com/v1/forecast",
+            new Dictionary<string, string?>
+            {
+                ["latitude"] = lat.ToString(invariant),
+                ["longitude"] = lon.ToString(invariant),
+                ["current"] = "temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m",
+                ["hourly"] = "temperature_2m,precipitation_probability,weather_code,wind_speed_10m",
+                ["daily"] = "weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,wind_speed_10m_max",
+                ["timezone"] = "auto",
+                ["forecast_days"] = "7",
+            });
+        var airUrl = BuildPublicUrl(
+            "https://air-quality-api.open-meteo.com/v1/air-quality",
+            new Dictionary<string, string?>
+            {
+                ["latitude"] = lat.ToString(invariant),
+                ["longitude"] = lon.ToString(invariant),
+                ["current"] = "us_aqi",
+                ["timezone"] = "auto",
+            });
+
+        var weatherData = await FetchJsonNodeAsync(weatherUrl, cancellationToken);
+        JsonNode? airData = null;
+        try
+        {
+            airData = await FetchJsonNodeAsync(airUrl, cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception error)
+        {
+            LogHostError("open-meteo-air", error);
+        }
+
+        var current = weatherData?["current"]
+            ?? throw new InvalidDataException("Open-Meteo 实时数据缺少 current 字段。");
+        var hourlyData = weatherData?["hourly"]
+            ?? throw new InvalidDataException("Open-Meteo 数据缺少 hourly 字段。");
+        var dailyData = weatherData?["daily"]
+            ?? throw new InvalidDataException("Open-Meteo 数据缺少 daily 字段。");
+
+        var currentCode = (int)Math.Round(ParseDouble(current["weather_code"]?.ToString(), 0d));
+        var currentMeta = CodeMeta(currentCode);
+        var currentTime = current["time"]?.ToString() ?? string.Empty;
+        var hourlyTimes = hourlyData["time"]?.AsArray() ?? [];
+        var hourlyStart = 0;
+        while (hourlyStart < hourlyTimes.Count
+            && string.CompareOrdinal(hourlyTimes[hourlyStart]?.ToString(), currentTime) < 0)
+        {
+            hourlyStart++;
+        }
+
+        var hourlyNodes = new JsonArray();
+        for (var index = hourlyStart; index < Math.Min(hourlyStart + 12, hourlyTimes.Count); index++)
+        {
+            var code = GetArrayValue(hourlyData["weather_code"], index, 0);
+            var meta = CodeMeta(code);
+            var isoTime = GetArrayValue(hourlyData["time"], index, string.Empty);
+            hourlyNodes.Add(new JsonObject
+            {
+                ["hourLabel"] = FormatHourLabel(isoTime),
+                ["isoTime"] = isoTime,
+                ["temperature"] = GetArrayValue(hourlyData["temperature_2m"], index, 0d),
+                ["precipitationChance"] = GetArrayValue(hourlyData["precipitation_probability"], index, 0),
+                ["windSpeedKph"] = (int)Math.Round(GetArrayValue(hourlyData["wind_speed_10m"], index, 0d)),
+                ["icon"] = meta.Icon,
+                ["iconCode"] = string.Empty,
+                ["conditionLabel"] = meta.Description,
+            });
+        }
+
+        var dailyTimes = dailyData["time"]?.AsArray() ?? [];
+        var dailyNodes = new JsonArray();
+        for (var index = 0; index < dailyTimes.Count; index++)
+        {
+            var isoDate = GetArrayValue(dailyData["time"], index, DateTime.Today.AddDays(index).ToString("yyyy-MM-dd"));
+            var day = FormatDaily(isoDate);
+            var code = GetArrayValue(dailyData["weather_code"], index, 0);
+            var meta = CodeMeta(code);
+            dailyNodes.Add(new JsonObject
+            {
+                ["dayLabel"] = day.DayLabel,
+                ["dateLabel"] = day.DateLabel,
+                ["isoDate"] = day.IsoDate,
+                ["highTemp"] = GetArrayValue(dailyData["temperature_2m_max"], index, 0d),
+                ["lowTemp"] = GetArrayValue(dailyData["temperature_2m_min"], index, 0d),
+                ["precipitationChance"] = GetArrayValue(dailyData["precipitation_probability_max"], index, 0),
+                ["precipitationAmountMm"] = null,
+                ["windSpeedKph"] = (int)Math.Round(GetArrayValue(dailyData["wind_speed_10m_max"], index, 0d)),
+                ["icon"] = meta.Icon,
+                ["iconCode"] = string.Empty,
+                ["conditionLabel"] = meta.Description,
+            });
+        }
+
+        var precipitationChance = hourlyNodes.FirstOrDefault()?["precipitationChance"]?.GetValue<int>() ?? 0;
+        var currentWind = (int)Math.Round(ParseDouble(current["wind_speed_10m"]?.ToString(), 0d));
+        var maxWind = dailyNodes.FirstOrDefault()?["windSpeedKph"]?.GetValue<int>() ?? currentWind;
+        var aqiValue = (int)Math.Round(ParseDouble(airData?["current"]?["us_aqi"]?.ToString(), 0d));
+        var aqi = AqiMeta(aqiValue);
+        var firstDay = dailyNodes.FirstOrDefault();
+
+        return new JsonObject
+        {
+            ["locationName"] = string.IsNullOrWhiteSpace(locationName) ? $"纬度 {lat:F2}" : locationName,
+            ["regionName"] = string.IsNullOrWhiteSpace(regionName) ? $"经度 {lon:F2}" : regionName,
+            ["latitude"] = lat,
+            ["longitude"] = lon,
+            ["currentTemp"] = ParseDouble(current["temperature_2m"]?.ToString(), 0d),
+            ["highTemp"] = firstDay?["highTemp"]?.GetValue<double>()
+                ?? ParseDouble(current["temperature_2m"]?.ToString(), 0d),
+            ["lowTemp"] = firstDay?["lowTemp"]?.GetValue<double>()
+                ?? ParseDouble(current["temperature_2m"]?.ToString(), 0d),
+            ["feelsLikeTemp"] = ParseDouble(
+                current["apparent_temperature"]?.ToString(),
+                ParseDouble(current["temperature_2m"]?.ToString(), 0d)),
+            ["humidityPercent"] = ParseDouble(current["relative_humidity_2m"]?.ToString(), 0d),
+            ["precipitationChance"] = precipitationChance,
+            ["windSpeedKph"] = currentWind,
+            ["description"] = currentMeta.Description,
+            ["conditionLabel"] = $"{currentMeta.Description}，风速 {currentWind} km/h",
+            ["backgroundKey"] = currentMeta.Icon,
+            ["currentIconCode"] = string.Empty,
+            ["source"] = "Open-Meteo",
+            ["cached"] = false,
+            ["airQualityIndex"] = aqiValue,
+            ["airQualityLabel"] = aqi.Label,
+            ["airQualitySummary"] = aqi.Summary,
+            ["updatedAt"] = FormatUpdatedAt(weatherData?["timezone"]?.ToString() ?? "UTC"),
+            ["alerts"] = JsonSerializer.SerializeToNode(
+                BuildAlerts(precipitationChance, currentCode, currentWind, maxWind, aqiValue),
+                JsonOptions),
+            ["hourly"] = hourlyNodes,
+            ["daily"] = dailyNodes,
+        };
     }
 
     private static JsonObject BuildFallbackSummary(double lat, double lon, string? locationName, string? regionName)
@@ -567,6 +837,7 @@ public sealed class LocalWeatherHost : IAsyncDisposable
                 ["highTemp"] = 28 - (index % 3),
                 ["lowTemp"] = 20 + (index % 2),
                 ["precipitationChance"] = 40 + index * 4,
+                ["precipitationAmountMm"] = null,
                 ["windSpeedKph"] = 12 + index,
                 ["icon"] = index < 3 ? "drizzle" : "cloudy",
                 ["iconCode"] = index < 3 ? "305" : "104",
@@ -713,10 +984,34 @@ public sealed class LocalWeatherHost : IAsyncDisposable
         return results.ToArray();
     }
 
+    private static string BuildPublicUrl(string baseUrl, Dictionary<string, string?> parameters)
+    {
+        var uri = new Uri(NormalizeBaseUrl(baseUrl), UriKind.Absolute);
+        var query = ParseQuery(uri.Query);
+        foreach (var entry in parameters)
+        {
+            if (!string.IsNullOrWhiteSpace(entry.Value))
+            {
+                query[entry.Key] = entry.Value!;
+            }
+        }
+
+        var queryString = string.Join(
+            "&",
+            query.Select(entry =>
+                $"{Uri.EscapeDataString(entry.Key)}={Uri.EscapeDataString(entry.Value)}"));
+        return query.Count == 0
+            ? uri.GetLeftPart(UriPartial.Path)
+            : $"{uri.GetLeftPart(UriPartial.Path)}?{queryString}";
+    }
+
     private static string BuildQWeatherUrl(string baseUrl, string path, Dictionary<string, string?> parameters)
     {
-        var normalizedBase = baseUrl.EndsWith("/", StringComparison.Ordinal) ? baseUrl : $"{baseUrl}/";
-        var uri = new Uri(new Uri(normalizedBase), path);
+        var normalizedBase = NormalizeBaseUrl(baseUrl);
+        normalizedBase = normalizedBase.EndsWith("/", StringComparison.Ordinal)
+            ? normalizedBase
+            : $"{normalizedBase}/";
+        var uri = new Uri(new Uri(normalizedBase, UriKind.Absolute), path);
         var query = ParseQuery(uri.Query);
         foreach (var entry in parameters)
         {
@@ -733,6 +1028,18 @@ public sealed class LocalWeatherHost : IAsyncDisposable
 
         var queryString = string.Join("&", query.Select(entry => $"{Uri.EscapeDataString(entry.Key)}={Uri.EscapeDataString(entry.Value)}"));
         return $"{uri.GetLeftPart(UriPartial.Path)}?{queryString}";
+    }
+
+    private static string NormalizeBaseUrl(string value)
+    {
+        var normalized = value.Trim();
+        if (!normalized.StartsWith("http://", StringComparison.OrdinalIgnoreCase)
+            && !normalized.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+        {
+            normalized = $"https://{normalized}";
+        }
+
+        return normalized;
     }
 
     private static Dictionary<string, string> QweatherHeaders(ApiConfig apiConfig)
@@ -833,6 +1140,23 @@ public sealed class LocalWeatherHost : IAsyncDisposable
     private static double ParseDouble(string? value, double fallback)
         => double.TryParse(value, out var parsed) ? parsed : fallback;
 
+    private static double ParseCoordinate(string? value, string parameterName, double minimum, double maximum)
+    {
+        if (!double.TryParse(
+                value,
+                System.Globalization.NumberStyles.Float,
+                System.Globalization.CultureInfo.InvariantCulture,
+                out var parsed)
+            || !double.IsFinite(parsed)
+            || parsed < minimum
+            || parsed > maximum)
+        {
+            throw new ArgumentException($"参数 {parameterName} 必须是 {minimum} 到 {maximum} 之间的有效坐标。");
+        }
+
+        return parsed;
+    }
+
     private static Dictionary<string, string> ParseQuery(string query)
     {
         var values = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -868,6 +1192,49 @@ public sealed class LocalWeatherHost : IAsyncDisposable
         }
     }
 
+    private static void EnsureAmapSuccess(JsonNode? payload)
+    {
+        if (string.Equals(payload?["status"]?.ToString(), "0", StringComparison.Ordinal))
+        {
+            var info = payload?["info"]?.ToString() ?? "未知错误";
+            throw new HttpRequestException($"高德地点服务返回错误：{info}");
+        }
+    }
+
+    private static JsonNode? EnsureQWeatherSuccess(JsonNode? payload, string endpoint)
+    {
+        var code = payload?["code"]?.ToString();
+        if (!string.IsNullOrWhiteSpace(code) && !string.Equals(code, "200", StringComparison.Ordinal))
+        {
+            throw new HttpRequestException($"和风天气{endpoint}返回代码 {code}");
+        }
+
+        return payload;
+    }
+
+    private static async Task<JsonNode?> FetchOptionalQWeatherJsonAsync(
+        string url,
+        string endpoint,
+        CancellationToken cancellationToken,
+        IReadOnlyDictionary<string, string>? headers)
+    {
+        try
+        {
+            return EnsureQWeatherSuccess(
+                await FetchJsonNodeAsync(url, cancellationToken, headers),
+                endpoint);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception error)
+        {
+            LogHostError($"qweather-optional-{endpoint}", error);
+            return null;
+        }
+    }
+
     private static async Task<JsonNode?> FetchJsonNodeAsync(string url, CancellationToken cancellationToken, IReadOnlyDictionary<string, string>? headers = null)
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, url);
@@ -884,6 +1251,24 @@ public sealed class LocalWeatherHost : IAsyncDisposable
         response.EnsureSuccessStatusCode();
         var content = await response.Content.ReadAsStringAsync(cancellationToken);
         return JsonNode.Parse(content);
+    }
+
+    private static void LogHostError(string operation, Exception error)
+    {
+        try
+        {
+            var logDirectory = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "ShizukuOpenWeather",
+                "logs");
+            Directory.CreateDirectory(logDirectory);
+            var line = $"{DateTimeOffset.Now:O}|{operation}|{error.GetType().Name}|{error.Message}{Environment.NewLine}";
+            File.AppendAllText(Path.Combine(logDirectory, "desktop-host.log"), line, Encoding.UTF8);
+        }
+        catch
+        {
+            // Logging must never break the local host response path.
+        }
     }
 
     private sealed record WeatherCodeMeta(string Icon, string Description, string Condition);

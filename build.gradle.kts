@@ -1,5 +1,16 @@
+buildscript {
+    configurations.classpath {
+        resolutionStrategy.force("org.apache.commons:commons-compress:1.25.0")
+    }
+}
+
 plugins {
     base
+    id("com.android.application") version "8.7.3" apply false
+    kotlin("android") version "2.0.21" apply false
+    kotlin("jvm") version "2.0.21" apply false
+    kotlin("plugin.compose") version "2.0.21" apply false
+    kotlin("plugin.spring") version "2.0.21" apply false
 }
 
 tasks.register<Exec>("checkRust") {
@@ -63,4 +74,10 @@ tasks.register<Exec>("buildWeb") {
 tasks.register("buildAll") {
     group = "build"
     dependsOn("buildRust", "buildWeb", ":apps:api:build")
+}
+
+tasks.register("buildAndroid") {
+    group = "build"
+    description = "Builds the Android debug APK."
+    dependsOn(":apps:android:assembleDebug")
 }
