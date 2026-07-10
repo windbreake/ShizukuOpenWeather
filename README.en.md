@@ -1,193 +1,143 @@
 <p align="center">
-  <img src="apps/desktop-dotnet/assets/app-icon-source.png" alt="ShizukuOpenWeather" width="180" />
+  <img src="apps/desktop-dotnet/assets/app-icon-source.png" alt="ShizukuOpenWeather" width="160" />
 </p>
 
 <h1 align="center">ShizukuOpenWeather</h1>
 
 <p align="center">
-  A PC-first modern weather application currently delivered through a .NET 10 desktop shell, Vue 3 UI, Java/Kotlin services, and SQLite local cache.
+  A modern weather app for Windows and Android. The desktop app keeps the large-screen card dashboard, while Android is rebuilt with native Kotlin and Jetpack Compose.
 </p>
 
 <p align="center">
-  <strong>English</strong> · <a href="README.zh-CN.md">简体中文</a>
+  <a href="README.md">Home</a> · <a href="README.zh-CN.md">简体中文</a> ·
+  <a href="https://github.com/windbreake/ShizukuOpenWeather/releases">Releases</a>
 </p>
 
 ## Overview
 
-ShizukuOpenWeather is a modern weather application project centered on the Windows desktop experience. Its visual direction is inspired by products such as Overdrop, while its interaction and layout decisions are optimized for desktop use.
+ShizukuOpenWeather is a local-first weather application for Windows desktop and Android. Its visual direction is inspired by modern card-based weather products such as Overdrop, while keeping this project's own frosted glass surfaces, tile cards, weather-aware backgrounds, and dense dashboard layout.
 
-The project has already been moved out of its original container-only development copy into a local repository workflow, while preserving the existing container validation and CI/CD chain. It now also includes Windows installer packaging, portable builds, and GitHub Release publishing.
+The project has been moved out of the early container-only development copy. The repository still keeps the Dev Container and CI/CD chain, and now also includes Windows installer packaging, portable desktop builds, Android APK builds, and GitHub Release automation.
 
-## Current State
+## Current Main Path
 
-The active delivery path in this repository currently centers on:
+Rust is not the current product path. A small legacy Rust workspace is still kept in the repository for compatibility and backup purposes, but active product development is now centered on:
 
-- `.NET 10` desktop shell
-- Native Android app with `Kotlin + Jetpack Compose`
-- `Vue 3 + TypeScript` desktop UI
-- `Java / Kotlin` networking and service integration
-- `SQLite` local cache and preferences storage
+- Android: `Kotlin` + `Jetpack Compose`
+- Windows desktop: `.NET 10` + `WebView2` + `Vue 3` + `TypeScript`
+- Service and networking layer: `Java / Kotlin`
+- Local cache and preferences: `SQLite`
 
-The repository still contains some Rust workspace files and folders such as `crates/`, `Cargo.toml`, and `Cargo.lock`, but they are no longer the main path described by the current desktop README and are better treated as legacy or reserved modules.
+## Features
 
-## Project Goals
+- Multi-location weather dashboard with sidebar tiles, detailed cards, and desktop-friendly layout
+- Native Android weather screen, locations screen, settings screen, and auto-hiding liquid-glass bottom navigation
+- Offline China administrative-location search for provinces, cities, districts, counties, and county-level cities
+- Overseas city search through Open-Meteo geocoding by default
+- Current-location weather through Android system location; the device decides whether to use GPS, BeiDou, Galileo, GLONASS, network positioning, or a fused result
+- Open-Meteo as the default weather provider, so the repository does not need bundled private API keys
+- Optional QWeather, QWeather icons, and AMap Web API configuration
+- API credentials are not committed to the repository; Android users enter them locally, and they are encrypted with Android Keystore
+- Current weather, hourly trends, 7-day forecast, AQI, weather alerts, map, and radar views
+- Custom background, frosted glass intensity, card visibility, and cache refresh preferences
+- Windows desktop EXE, Inno Setup installer, portable ZIP, and Android APK release paths
 
-- Windows and Android weather dashboard with multi-location management
-- Modern UI, card-based information design, and customizable appearance
-- Local-first usage without accounts, cloud sync, or heavy deployment requirements
-- Multi-language extensibility for future desktop and mobile packaging targets
+## Data and Privacy
 
-The native Android app is now part of the active development path while the desktop delivery remains intact.
+The default mode does not require private weather API keys. China search uses an offline administrative-location coordinate index bundled in the repository, then queries weather from Open-Meteo. Overseas search uses Open-Meteo's free geocoding service by default.
 
-## Current Features
-
-- Multi-location weather view with sidebar tile cards
-- County-level lookup in China and city-level overseas search
-- Current conditions, hourly trend, and 7-day forecast
-- AQI, weather alerts, map, and radar presentation
-- Custom background, frosted glass effect, card visibility, and layout preferences
-- Local SQLite cache and local settings storage
-- Windows desktop app, portable package, and installer output
-- Native Android dashboard, location search, settings, and auto-hiding glass navigation
-- Free Open-Meteo defaults with optional QWeather and AMap configuration
+Optional API credentials should only be entered in the local app settings. They should not be written into README files, source code, sample configs, or GitHub Actions logs. Tokens that were ever exposed publicly should be treated as risky and rotated in the provider console.
 
 ## Tech Stack
 
-### Current Main Path
-
-- `Vue 3` + `TypeScript`
-- `Vite`
 - `Kotlin` + `Jetpack Compose`
 - `.NET 10` WinForms + `WebView2`
+- `Vue 3` + `TypeScript` + `Vite`
 - `Java / Kotlin`
 - `SQLite`
-
-### Data Sources
-
-- Default Android weather and geocoding: `Open-Meteo`
-- Optional weather provider: `QWeather`
-- Optional geocoding provider: `AMap Web API`
-- Map tiles: `OpenStreetMap`
-
-### Legacy / Reserved Modules
-
-- `Rust` workspace files are still present in the repository, but they are not the primary delivery path described by this README
+- `Open-Meteo`
+- Optional: `QWeather`, `AMap Web API`, `OpenStreetMap`
 
 ## Repository Structure
 
 ```text
 ShizukuOpenWeather/
-├── .devcontainer/                   # Dev Container configuration
-├── .github/workflows/               # GitHub Actions workflows
+├── .devcontainer/                 # Dev Container development environment
+├── .github/workflows/             # Android, desktop, and container CI/CD
 ├── apps/
-│   ├── api/                         # Java / Kotlin backend services
-│   ├── desktop-dotnet/              # .NET 10 desktop shell, local host bridge, installer assets
-│   └── web/                         # Vue 3 + TypeScript desktop weather UI
-│   ├── android/                     # Kotlin + Jetpack Compose Android app
-├── crates/                          # Legacy Rust workspace modules
-├── data/                            # Local development data
-├── docs/                            # Architecture, API, data, and UI docs
-├── scripts/                         # Development, build, and packaging scripts
-├── Dockerfile                       # Container development image
-├── docker-compose.yml               # Container development environment
-├── build.gradle.kts                 # Top-level build orchestration
+│   ├── android/                   # Kotlin + Jetpack Compose Android app
+│   ├── api/                       # Java / Kotlin service and API layer
+│   ├── desktop-dotnet/            # .NET 10 desktop shell, icons, installer assets
+│   └── web/                       # Vue 3 + TypeScript desktop weather UI
+├── data/                          # Offline and local development data
+├── docs/                          # Architecture, API, UI, data source, and license docs
+├── scripts/                       # Development, validation, and packaging scripts
+├── Dockerfile                     # Container development image
+├── docker-compose.yml             # Container development environment
+├── build.gradle.kts               # Top-level Gradle build
 └── README.md
 ```
 
 ## Local Development
 
-### Recommended Environment
+Recommended environment:
 
 - JDK 21
 - Node.js 22+
-- SQLite3 CLI
-- .NET 10 SDK
-- Inno Setup 6 for Windows installer packaging
-
-### Validate the environment
-- Android Studio or Android SDK 35
 - Gradle 8.9
+- Android SDK 35 or Android Studio
+- .NET 10 SDK
+- SQLite3 CLI
+- Inno Setup 6 for the Windows installer
+
+Environment check:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts/check-dev-env.ps1
 ```
 
-### Run API and Web development services separately
+Desktop development:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts/dev-api.ps1
 powershell -ExecutionPolicy Bypass -File scripts/dev-web.ps1
-```
-
-### Start the current combined development flow
-
-```powershell
 powershell -ExecutionPolicy Bypass -File scripts/start-dev.ps1
 ```
 
-## Windows Desktop Packaging
-
-The repository already supports complete desktop output, including application icon wiring, installer icon wiring, and release asset packaging.
-## Android Build
-
-The Android project lives in `apps/android`. Open-Meteo works without a bundled key. Optional QWeather and AMap credentials are entered in the settings screen and encrypted locally with Android Keystore.
+Android build:
 
 ```powershell
 gradle :apps:android:testDebugUnitTest :apps:android:assembleDebug
 ```
 
-APK output:
+Android APK output:
 
 ```text
 apps/android/build/outputs/apk/debug/android-debug.apk
 ```
 
-
-### Build the desktop app and installer
+Windows desktop packaging:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts/build-desktop-installer.ps1 -Version 0.1.0
 ```
 
-### Output artifacts
+Desktop packaging outputs:
 
-The build script generates:
-
-- `ShizukuWeatherDesktop.exe` for desktop publish output
-- `ShizukuOpenWeather-Setup-<version>.exe` for the Windows installer
-- `ShizukuOpenWeather-portable-<version>.zip` for the portable package
-
-The installer defaults to a per-user installation path and can create both Start Menu and Desktop shortcuts.
+- `ShizukuWeatherDesktop.exe`
+- `ShizukuOpenWeather-Setup-<version>.exe`
+- `ShizukuOpenWeather-portable-<version>.zip`
 
 ## CI/CD
 
-### Existing container path
+- `Devcontainer CI/CD`: keeps the original container development path and validates the multi-language project
+- `Android CI and Release`: runs Android unit tests, builds the APK, uploads CI artifacts, and appends APKs to tagged releases
+- `Desktop Release`: packages the Windows desktop EXE, installer, and portable ZIP
 
-The following path remains in place as the shared validation and devcontainer foundation:
+Release assets are available from:
 
-- `.devcontainer/devcontainer.json`
-- `.github/workflows/devcontainer-ci-cd.yml`
+- [GitHub Releases](https://github.com/windbreake/ShizukuOpenWeather/releases)
 
-### Windows desktop release path
+## License and Third-party Data
 
-### Android build and release path
-
-- `.github/workflows/android.yml`
-
-This workflow runs Android unit tests, builds the APK, uploads a CI artifact, and appends the APK to tagged GitHub Releases.
-
-The repository also includes a dedicated Windows desktop packaging workflow:
-
-- `.github/workflows/desktop-release.yml`
-
-This keeps the original container CI/CD path intact while giving the desktop application its own release lane.
-
-## Release
-
-Published assets are available from GitHub Releases:
-
-- [Releases](https://github.com/windbreake/ShizukuOpenWeather/releases)
-
-## Note
-
-The content shown on the GitHub repository homepage comes directly from the root `README.md`. Once that file is pushed to the default `main` branch, the homepage updates automatically.
+Third-party data and resource license notes live in [docs/licenses](docs/licenses). The offline China administrative-location index uses the `city-geo` data set; details are documented in [docs/licenses/README.md](docs/licenses/README.md).
