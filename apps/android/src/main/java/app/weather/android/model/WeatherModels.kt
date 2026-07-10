@@ -1,5 +1,8 @@
 package app.weather.android.model
 
+import java.nio.charset.StandardCharsets
+import java.security.MessageDigest
+
 enum class ProviderMode {
     OPEN_METEO,
     QWEATHER,
@@ -115,7 +118,24 @@ data class ApiSettings(
     val qWeatherApiKey: String = "",
     val amapGeocodingUrl: String = "https://restapi.amap.com/v3/assistant/inputtips",
     val amapApiKey: String = "",
-)
+) {
+    val weatherCacheIdentity: String
+        get() {
+            val material = listOf(
+                providerMode.name,
+                providerName,
+                openMeteoWeatherUrl,
+                openMeteoAirUrl,
+                qWeatherHost,
+                qWeatherAirHost,
+                qWeatherApiKey,
+            ).joinToString("\u001F")
+            return MessageDigest.getInstance("SHA-256")
+                .digest(material.toByteArray(StandardCharsets.UTF_8))
+                .take(12)
+                .joinToString("") { "%02x".format(it.toInt() and 0xff) }
+        }
+}
 
 data class AppearanceSettings(
     val frostEnabled: Boolean = true,

@@ -45,8 +45,9 @@ class WeatherRepository(context: Context) {
 
     suspend fun weather(location: LocationResult, force: Boolean = false): WeatherSummary {
         val settings = settingsStore.load()
+        val cacheKey = "${location.cacheIdentity}|${settings.api.weatherCacheIdentity}"
         val cache = withContext(Dispatchers.IO) {
-            database.getCache(location.cacheIdentity)
+            database.getCache(cacheKey)
         }
         val maxAge = settings.refreshIntervalHours * 60L * 60L * 1000L
         val now = System.currentTimeMillis()
@@ -59,7 +60,7 @@ class WeatherRepository(context: Context) {
             val summary = api.weather(location, settings.api)
             withContext(Dispatchers.IO) {
                 database.putCache(
-                    location.cacheIdentity,
+                    cacheKey,
                     WeatherJson.encode(summary),
                     summary.updatedAtEpochMs,
                 )

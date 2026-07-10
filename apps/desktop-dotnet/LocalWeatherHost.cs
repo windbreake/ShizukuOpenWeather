@@ -223,8 +223,8 @@ public sealed class LocalWeatherHost : IAsyncDisposable
 
     private async Task HandleSummaryAsync(HttpListenerRequest request, HttpListenerResponse response, ApiConfig apiConfig)
     {
-        var lat = ParseDouble(request.QueryString["lat"], 41.8057);
-        var lon = ParseDouble(request.QueryString["lon"], 123.4315);
+        var lat = ParseCoordinate(request.QueryString["lat"], "lat", -90d, 90d);
+        var lon = ParseCoordinate(request.QueryString["lon"], "lon", -180d, 180d);
         var locationName = request.QueryString["locationName"];
         var regionName = request.QueryString["regionName"];
         var cacheKey = $"summary:{Math.Round(lat, 4):F4}:{Math.Round(lon, 4):F4}:{locationName}:{regionName}:{BuildApiCacheFingerprint(apiConfig)}";
@@ -1139,6 +1139,23 @@ public sealed class LocalWeatherHost : IAsyncDisposable
 
     private static double ParseDouble(string? value, double fallback)
         => double.TryParse(value, out var parsed) ? parsed : fallback;
+
+    private static double ParseCoordinate(string? value, string parameterName, double minimum, double maximum)
+    {
+        if (!double.TryParse(
+                value,
+                System.Globalization.NumberStyles.Float,
+                System.Globalization.CultureInfo.InvariantCulture,
+                out var parsed)
+            || !double.IsFinite(parsed)
+            || parsed < minimum
+            || parsed > maximum)
+        {
+            throw new ArgumentException($"参数 {parameterName} 必须是 {minimum} 到 {maximum} 之间的有效坐标。");
+        }
+
+        return parsed;
+    }
 
     private static Dictionary<string, string> ParseQuery(string query)
     {
