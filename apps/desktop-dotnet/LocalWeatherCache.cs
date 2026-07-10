@@ -81,7 +81,13 @@ public sealed class LocalWeatherCache
                 return null;
             }
 
-            var expiresAt = DateTimeOffset.Parse(reader.GetString(1));
+            if (!DateTimeOffset.TryParse(reader.GetString(1), out var expiresAt))
+            {
+                reader.Close();
+                await RemoveCoreAsync(key, cancellationToken);
+                return null;
+            }
+
             if (expiresAt <= DateTimeOffset.UtcNow)
             {
                 reader.Close();

@@ -80,7 +80,7 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
-          gradle :apps:android:testDebugUnitTest :apps:android:assembleDebug --stacktrace 2>&1 | tee android-build.log
+          gradle :apps:android:testDebugUnitTest :apps:android:assembleDebug :apps:android:lintDebug --stacktrace 2>&1 | tee android-build.log
 
       - name: Extract Android failure
         id: diagnostic

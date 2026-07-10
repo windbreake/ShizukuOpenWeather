@@ -20,7 +20,8 @@ export interface DailyForecastPoint {
   isoDate: string
   highTemp: number
   lowTemp: number
-  precipitationChance: number
+  precipitationChance: number | null
+  precipitationAmountMm?: number | null
   windSpeedKph: number
   icon: WeatherGlyph
   iconCode?: string
