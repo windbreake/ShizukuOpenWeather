@@ -56,7 +56,8 @@ object WeatherJson {
                     put("dateLabel", point.dateLabel)
                     put("highTemp", point.highTemp)
                     put("lowTemp", point.lowTemp)
-                    put("precipitationChance", point.precipitationChance)
+                    put("precipitationChance", point.precipitationChance ?: JSONObject.NULL)
+                    put("precipitationAmountMm", point.precipitationAmountMm ?: JSONObject.NULL)
                     put("windSpeedKph", point.windSpeedKph)
                     put("glyph", point.glyph.name)
                     put("iconCode", point.iconCode)
@@ -98,7 +99,8 @@ object WeatherJson {
                 dateLabel = item.optString("dateLabel"),
                 highTemp = item.optDouble("highTemp"),
                 lowTemp = item.optDouble("lowTemp"),
-                precipitationChance = item.optInt("precipitationChance"),
+                precipitationChance = item.optNullableInt("precipitationChance"),
+                precipitationAmountMm = item.optNullableDouble("precipitationAmountMm"),
                 windSpeedKph = item.optInt("windSpeedKph"),
                 glyph = item.enumValue("glyph", WeatherGlyph.CLOUDY),
                 iconCode = item.optNullableString("iconCode"),
@@ -155,6 +157,12 @@ private inline fun <reified T : Enum<T>> JSONObject.enumValue(key: String, fallb
 
 private fun JSONObject.optNullableString(key: String): String? =
     if (isNull(key)) null else optString(key).takeIf { it.isNotBlank() }
+
+private fun JSONObject.optNullableInt(key: String): Int? =
+    if (!has(key) || isNull(key)) null else optInt(key)
+
+private fun JSONObject.optNullableDouble(key: String): Double? =
+    if (!has(key) || isNull(key)) null else optDouble(key).takeIf { it.isFinite() }
 
 private inline fun <T> JSONArray?.mapObjects(transform: (JSONObject) -> T): List<T> {
     if (this == null) return emptyList()

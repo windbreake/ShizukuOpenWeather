@@ -1,6 +1,6 @@
 package app.weather.android.ui
 
-import androidx.compose.animation.core.animateFloatAsState
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -30,7 +30,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.rotate
+
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
@@ -56,7 +56,9 @@ internal fun WeatherDashboard(
             .distinctUntilChanged()
             .collect { onScrollStateChange(it) }
     }
-    val backgroundUrl = state.settings.appearance.backgroundImageUrl
+    val appearance = state.settings.appearance
+    val backgroundUrl = appearance.backgroundImageUrl
+    val backgroundOverlayAlpha = if (appearance.adaptiveText) 0.78f else 0.58f
     Box(modifier = Modifier.fillMaxSize()) {
         if (backgroundUrl.isNotBlank()) {
             AsyncImage(
@@ -68,7 +70,9 @@ internal fun WeatherDashboard(
             Box(
                 Modifier
                     .fillMaxSize()
-                    .background(MaterialTheme.colorScheme.background.copy(alpha = 0.72f)),
+                    .background(
+                        MaterialTheme.colorScheme.background.copy(alpha = backgroundOverlayAlpha),
+                    ),
             )
         }
 

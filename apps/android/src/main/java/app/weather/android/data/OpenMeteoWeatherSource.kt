@@ -130,6 +130,7 @@ internal class OpenMeteoWeatherSource {
                 highTemp = highs.optDouble(index),
                 lowTemp = lows.optDouble(index),
                 precipitationChance = precipitation.optInt(index),
+                precipitationAmountMm = null,
                 windSpeedKph = winds.optDouble(index).toInt(),
                 glyph = meta.first,
                 iconCode = null,

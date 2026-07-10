@@ -205,6 +205,11 @@ internal fun DailyCard(points: List<DailyForecast>, opacity: Float) {
             SectionHeader("未来一周", "7 日天气趋势")
             Spacer(Modifier.height(8.dp))
             points.forEachIndexed { index, point ->
+                val precipitationLabel = point.precipitationChance?.let {
+                    "降雨 $it%"
+                } ?: point.precipitationAmountMm?.let {
+                    "降水 ${(it * 10).roundToInt() / 10.0} mm"
+                } ?: "暂无降水数据"
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -231,7 +236,7 @@ internal fun DailyCard(points: List<DailyForecast>, opacity: Float) {
                     ) {
                         Text(point.conditionLabel, style = MaterialTheme.typography.bodyLarge)
                         Text(
-                            "降雨 ${point.precipitationChance}% · 风速 ${point.windSpeedKph} km/h",
+                            "$precipitationLabel · 风速 ${point.windSpeedKph} km/h",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )

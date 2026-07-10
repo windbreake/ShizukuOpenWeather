@@ -5,6 +5,7 @@ import app.weather.android.model.AppSettings
 import app.weather.android.model.LocationResult
 import app.weather.android.model.WeatherJson
 import app.weather.android.model.WeatherSummary
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -44,7 +45,9 @@ class WeatherRepository(context: Context) {
 
     suspend fun weather(location: LocationResult, force: Boolean = false): WeatherSummary {
         val settings = settingsStore.load()
-        val cache = withContext(Dispatchers.IO) { database.getCache(location.key) }
+        val cache = withContext(Dispatchers.IO) {
+            database.getCache(location.cacheIdentity)
+        }
         val maxAge = settings.refreshIntervalHours * 60L * 60L * 1000L
         val now = System.currentTimeMillis()
 
@@ -55,9 +58,15 @@ class WeatherRepository(context: Context) {
         return try {
             val summary = api.weather(location, settings.api)
             withContext(Dispatchers.IO) {
-                database.putCache(location.key, WeatherJson.encode(summary), summary.updatedAtEpochMs)
+                database.putCache(
+                    location.cacheIdentity,
+                    WeatherJson.encode(summary),
+                    summary.updatedAtEpochMs,
+                )
             }
             summary
+        } catch (error: CancellationException) {
+            throw error
         } catch (error: Exception) {
             if (cache != null) WeatherJson.decode(cache.payload, cached = true)
             else throw error

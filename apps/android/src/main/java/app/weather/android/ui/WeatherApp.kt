@@ -3,18 +3,10 @@ package app.weather.android.ui
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.LocationOn
-import androidx.compose.material.icons.rounded.Settings
-import androidx.compose.material.icons.rounded.WbCloudy
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
@@ -62,8 +54,12 @@ fun ShizukuWeatherApp(viewModel: WeatherViewModel = viewModel()) {
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         snackbarHost = { SnackbarHost(snackbar) },
-    ) {
-        Box(modifier = Modifier.fillMaxSize()) {
+    ) { contentPadding ->
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(contentPadding),
+        ) {
             when (state.tab) {
                 AppTab.WEATHER -> WeatherDashboard(
                     state = state,
@@ -92,6 +88,7 @@ fun ShizukuWeatherApp(viewModel: WeatherViewModel = viewModel()) {
             FloatingGlassNavigation(
                 selected = state.tab,
                 visible = navigationVisible,
+                animationsEnabled = state.settings.appearance.animationsEnabled,
                 onSelect = viewModel::navigate,
                 modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 16.dp),
             )

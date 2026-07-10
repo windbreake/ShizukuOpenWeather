@@ -51,7 +51,9 @@ internal object QWeatherParser {
                 dateLabel = localDate.format(DateTimeFormatter.ofPattern("MM/dd")),
                 highTemp = item.optDouble("tempMax"),
                 lowTemp = item.optDouble("tempMin"),
-                precipitationChance = item.optInt("precip"),
+                precipitationChance = null,
+                precipitationAmountMm = item.optDouble("precip", Double.NaN)
+                    .takeIf { it.isFinite() },
                 windSpeedKph = item.optDouble("windSpeedDay").toInt(),
                 glyph = WeatherCodeMapper.qWeather(iconCode, dayText),
                 iconCode = iconCode,

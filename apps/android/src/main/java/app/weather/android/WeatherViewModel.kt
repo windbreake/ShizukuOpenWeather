@@ -7,6 +7,7 @@ import app.weather.android.data.WeatherRepository
 import app.weather.android.model.AppSettings
 import app.weather.android.model.LocationResult
 import app.weather.android.model.WeatherSummary
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -40,20 +41,30 @@ class WeatherViewModel(application: Application) : AndroidViewModel(application)
     private val mutableState = MutableStateFlow(WeatherUiState())
     val state: StateFlow<WeatherUiState> = mutableState.asStateFlow()
     private var searchJob: Job? = null
+    private var weatherJob: Job? = null
 
     init {
         viewModelScope.launch {
-            val settings = repository.settings()
-            val locations = repository.savedLocations()
-            val selected = locations.firstOrNull() ?: WeatherRepository.DEFAULT_LOCATION
-            mutableState.update {
-                it.copy(
-                    settings = settings,
-                    savedLocations = locations,
-                    selectedLocation = selected,
-                )
+            try {
+                val settings = repository.settings()
+                val locations = repository.savedLocations()
+                val selected = locations.firstOrNull() ?: WeatherRepository.DEFAULT_LOCATION
+                mutableState.update {
+                    it.copy(
+                        settings = settings,
+                        savedLocations = locations,
+                        selectedLocation = selected,
+                    )
+                }
+                requestWeather(force = false)
+            } catch (error: Exception) {
+                mutableState.update {
+                    it.copy(
+                        loading = false,
+                        errorMessage = error.userMessage("应用初始化失败"),
+                    )
+                }
             }
-            loadWeather(force = false)
         }
     }
 
@@ -63,36 +74,50 @@ class WeatherViewModel(application: Application) : AndroidViewModel(application)
 
     fun selectLocation(location: LocationResult) {
         mutableState.update {
+            val locationChanged =
+                it.selectedLocation.cacheIdentity != location.cacheIdentity
             it.copy(
                 selectedLocation = location,
+                weather = if (locationChanged) null else it.weather,
                 tab = AppTab.WEATHER,
                 locationQuery = "",
                 searchResults = emptyList(),
             )
         }
-        viewModelScope.launch { loadWeather(force = false) }
+        requestWeather(force = false)
     }
 
     fun refresh() {
-        viewModelScope.launch { loadWeather(force = true) }
+        requestWeather(force = true)
     }
 
     fun updateSearchQuery(query: String) {
-        mutableState.update { it.copy(locationQuery = query) }
         searchJob?.cancel()
-        if (query.trim().length < 2) {
-            mutableState.update { it.copy(searchResults = emptyList(), searchLoading = false) }
-            return
+        val requestedQuery = query.trim()
+        val shouldSearch = requestedQuery.length >= 2
+        mutableState.update {
+            it.copy(
+                locationQuery = query,
+                searchResults = emptyList(),
+                searchLoading = shouldSearch,
+                errorMessage = null,
+            )
         }
+        if (!shouldSearch) return
 
         searchJob = viewModelScope.launch {
             delay(350)
-            mutableState.update { it.copy(searchLoading = true, errorMessage = null) }
-            runCatching { repository.search(query) }
-                .onSuccess { results ->
-                    mutableState.update { it.copy(searchResults = results, searchLoading = false) }
+            try {
+                val results = repository.search(requestedQuery)
+                if (mutableState.value.locationQuery.trim() == requestedQuery) {
+                    mutableState.update {
+                        it.copy(searchResults = results, searchLoading = false)
+                    }
                 }
-                .onFailure { error ->
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                if (mutableState.value.locationQuery.trim() == requestedQuery) {
                     mutableState.update {
                         it.copy(
                             searchResults = emptyList(),
@@ -101,15 +126,22 @@ class WeatherViewModel(application: Application) : AndroidViewModel(application)
                         )
                     }
                 }
+            }
         }
     }
 
     fun addLocation(location: LocationResult) {
         viewModelScope.launch {
-            repository.saveLocation(location)
-            val locations = repository.savedLocations()
-            mutableState.update { it.copy(savedLocations = locations) }
-            selectLocation(location)
+            try {
+                repository.saveLocation(location)
+                val locations = repository.savedLocations()
+                mutableState.update { it.copy(savedLocations = locations) }
+                selectLocation(location)
+            } catch (error: Exception) {
+                mutableState.update {
+                    it.copy(errorMessage = error.userMessage("地点保存失败"))
+                }
+            }
         }
     }
 
@@ -119,15 +151,29 @@ class WeatherViewModel(application: Application) : AndroidViewModel(application)
                 mutableState.update { it.copy(errorMessage = "至少保留一个地点") }
                 return@launch
             }
-            repository.removeLocation(location.key)
-            val locations = repository.savedLocations()
-            val selected = if (mutableState.value.selectedLocation.key == location.key) {
-                locations.first()
-            } else {
-                mutableState.value.selectedLocation
+            try {
+                val removingSelected =
+                    mutableState.value.selectedLocation.key == location.key
+                repository.removeLocation(location.key)
+                val locations = repository.savedLocations()
+                val selected = if (removingSelected) {
+                    locations.first()
+                } else {
+                    mutableState.value.selectedLocation
+                }
+                mutableState.update {
+                    it.copy(
+                        savedLocations = locations,
+                        selectedLocation = selected,
+                        weather = if (removingSelected) null else it.weather,
+                    )
+                }
+                if (removingSelected) requestWeather(force = false)
+            } catch (error: Exception) {
+                mutableState.update {
+                    it.copy(errorMessage = error.userMessage("地点删除失败"))
+                }
             }
-            mutableState.update { it.copy(savedLocations = locations, selectedLocation = selected) }
-            if (selected.key != location.key) loadWeather(force = false)
         }
     }
 
@@ -137,9 +183,22 @@ class WeatherViewModel(application: Application) : AndroidViewModel(application)
 
     fun saveSettings() {
         viewModelScope.launch {
-            repository.saveSettings(mutableState.value.settings)
-            mutableState.update { it.copy(errorMessage = null, tab = AppTab.WEATHER) }
-            loadWeather(force = true)
+            try {
+                repository.saveSettings(mutableState.value.settings)
+                val persistedSettings = repository.settings()
+                mutableState.update {
+                    it.copy(
+                        settings = persistedSettings,
+                        errorMessage = null,
+                        tab = AppTab.WEATHER,
+                    )
+                }
+                requestWeather(force = true)
+            } catch (error: Exception) {
+                mutableState.update {
+                    it.copy(errorMessage = error.userMessage("设置保存失败"))
+                }
+            }
         }
     }
 
@@ -147,7 +206,13 @@ class WeatherViewModel(application: Application) : AndroidViewModel(application)
         mutableState.update { it.copy(errorMessage = null) }
     }
 
+    private fun requestWeather(force: Boolean) {
+        weatherJob?.cancel()
+        weatherJob = viewModelScope.launch { loadWeather(force) }
+    }
+
     private suspend fun loadWeather(force: Boolean) {
+        val location = mutableState.value.selectedLocation
         mutableState.update {
             it.copy(
                 loading = it.weather == null,
@@ -155,9 +220,9 @@ class WeatherViewModel(application: Application) : AndroidViewModel(application)
                 errorMessage = null,
             )
         }
-        val location = mutableState.value.selectedLocation
-        runCatching { repository.weather(location, force) }
-            .onSuccess { weather ->
+        try {
+            val weather = repository.weather(location, force)
+            if (mutableState.value.selectedLocation.cacheIdentity == location.cacheIdentity) {
                 mutableState.update {
                     it.copy(
                         weather = weather,
@@ -167,7 +232,10 @@ class WeatherViewModel(application: Application) : AndroidViewModel(application)
                     )
                 }
             }
-            .onFailure { error ->
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: Exception) {
+            if (mutableState.value.selectedLocation.cacheIdentity == location.cacheIdentity) {
                 mutableState.update {
                     it.copy(
                         loading = false,
@@ -176,6 +244,7 @@ class WeatherViewModel(application: Application) : AndroidViewModel(application)
                     )
                 }
             }
+        }
     }
 }
 

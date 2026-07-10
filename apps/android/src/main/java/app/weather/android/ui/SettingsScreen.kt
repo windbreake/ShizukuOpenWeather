@@ -206,8 +206,8 @@ internal fun SettingsScreen(
                         },
                     )
                     SettingSwitch(
-                        title = "文字自适应",
-                        subtitle = "根据背景提高文字对比度",
+                        title = "文字对比增强",
+                        subtitle = "自定义背景下加深遮罩，提高文字可读性",
                         checked = appearance.adaptiveText,
                         onCheckedChange = {
                             onSettingsChange(

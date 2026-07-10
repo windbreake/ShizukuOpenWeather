@@ -1,6 +1,8 @@
 package app.weather.android.ui
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
@@ -9,7 +11,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
+
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -32,14 +34,23 @@ import app.weather.android.AppTab
 internal fun FloatingGlassNavigation(
     selected: AppTab,
     visible: Boolean,
+    animationsEnabled: Boolean,
     onSelect: (AppTab) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     AnimatedVisibility(
         visible = visible,
-        modifier = modifier.navigationBarsPadding(),
-        enter = fadeIn() + slideInVertically(initialOffsetY = { it / 2 }),
-        exit = fadeOut() + slideOutVertically(targetOffsetY = { it / 2 }),
+        modifier = modifier,
+        enter = if (animationsEnabled) {
+            fadeIn() + slideInVertically(initialOffsetY = { it / 2 })
+        } else {
+            EnterTransition.None
+        },
+        exit = if (animationsEnabled) {
+            fadeOut() + slideOutVertically(targetOffsetY = { it / 2 })
+        } else {
+            ExitTransition.None
+        },
     ) {
         Surface(
             modifier = Modifier

@@ -36,7 +36,10 @@ data class LocationResult(
     val latitude: Double,
     val longitude: Double,
     val adcode: String? = null,
-)
+) {
+    val cacheIdentity: String
+        get() = "$key|${latitude.toBits()}|${longitude.toBits()}"
+}
 
 data class HourlyForecast(
     val time: String,
@@ -55,7 +58,8 @@ data class DailyForecast(
     val dateLabel: String,
     val highTemp: Double,
     val lowTemp: Double,
-    val precipitationChance: Int,
+    val precipitationChance: Int?,
+    val precipitationAmountMm: Double? = null,
     val windSpeedKph: Int,
     val glyph: WeatherGlyph,
     val iconCode: String?,
