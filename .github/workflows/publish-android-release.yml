@@ -1,0 +1,47 @@
+name: Publish Android Release
+
+on:
+  push:
+    branches: [codex/android-app]
+    paths: [.github/workflows/publish-android-release.yml]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Release version without leading v
+        required: true
+        default: 0.1.0
+
+permissions:
+  contents: write
+
+env:
+  RELEASE_VERSION: ${{ inputs.version || '0.1.0' }}
+  RELEASE_TAG: v${{ inputs.version || '0.1.0' }}
+
+jobs:
+  android-apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: android-actions/setup-android@v3
+      - run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - run: gradle :apps:android:testDebugUnitTest :apps:android:assembleDebug :apps:android:lintDebug --stacktrace
+      - run: cp apps/android/build/outputs/apk/debug/android-debug.apk "ShizukuOpenWeather-Android-${RELEASE_TAG}.apk"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ShizukuOpenWeather-Android-${{ env.RELEASE_TAG }}
+          path: ShizukuOpenWeather-Android-${{ env.RELEASE_TAG }}.apk
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.RELEASE_TAG }}
+          target_commitish: codex/android-app
+          name: ShizukuOpenWeather ${{ env.RELEASE_TAG }}
+          make_latest: true
+          files: ShizukuOpenWeather-Android-${{ env.RELEASE_TAG }}.apk
