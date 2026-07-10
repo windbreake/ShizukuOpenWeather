@@ -4,9 +4,12 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -16,8 +19,10 @@ import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.LocationOn
+import androidx.compose.material.icons.rounded.MyLocation
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -32,8 +37,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import app.weather.android.WeatherUiState
 import app.weather.android.model.LocationResult
-
 import kotlinx.coroutines.flow.distinctUntilChanged
+
 @Composable
 internal fun LocationsScreen(
     state: WeatherUiState,
@@ -42,6 +47,7 @@ internal fun LocationsScreen(
     onAdd: (LocationResult) -> Unit,
     onRemove: (LocationResult) -> Unit,
     onBack: () -> Unit,
+    onUseCurrentLocation: () -> Unit,
     onScrollStateChange: (Boolean) -> Unit,
 ) {
     val listState = rememberLazyListState()
@@ -77,6 +83,21 @@ internal fun LocationsScreen(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 4.dp, bottom = 12.dp),
             )
+            FilledTonalButton(
+                onClick = onUseCurrentLocation,
+                enabled = !state.locating,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 12.dp),
+            ) {
+                if (state.locating) {
+                    CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                } else {
+                    Icon(Icons.Rounded.MyLocation, contentDescription = null)
+                }
+                Spacer(Modifier.width(8.dp))
+                Text(if (state.locating) "正在获取当前位置" else "使用当前位置")
+            }
             OutlinedTextField(
                 value = state.locationQuery,
                 onValueChange = onQueryChange,

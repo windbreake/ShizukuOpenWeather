@@ -34,6 +34,7 @@ data class WeatherUiState(
     val locationQuery: String = "",
     val searchResults: List<LocationResult> = emptyList(),
     val searchLoading: Boolean = false,
+    val locating: Boolean = false,
 )
 
 class WeatherViewModel(application: Application) : AndroidViewModel(application) {
@@ -89,6 +90,43 @@ class WeatherViewModel(application: Application) : AndroidViewModel(application)
 
     fun refresh() {
         requestWeather(force = true)
+    }
+
+    fun useCurrentLocation() {
+        viewModelScope.launch {
+            mutableState.update { it.copy(locating = true, errorMessage = null) }
+            try {
+                val location = repository.currentLocation()
+                repository.saveLocation(location)
+                val locations = repository.savedLocations()
+                mutableState.update {
+                    it.copy(
+                        savedLocations = locations,
+                        selectedLocation = location,
+                        weather = null,
+                        loading = true,
+                        locating = false,
+                        tab = AppTab.WEATHER,
+                        locationQuery = "",
+                        searchResults = emptyList(),
+                    )
+                }
+                requestWeather(force = true)
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                mutableState.update {
+                    it.copy(
+                        locating = false,
+                        errorMessage = error.userMessage("当前位置获取失败"),
+                    )
+                }
+            }
+        }
+    }
+
+    fun locationPermissionDenied() {
+        mutableState.update { it.copy(errorMessage = "需要定位权限才能获取当前位置天气") }
     }
 
     fun updateSearchQuery(query: String) {

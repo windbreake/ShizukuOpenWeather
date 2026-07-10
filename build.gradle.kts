@@ -1,3 +1,9 @@
+buildscript {
+    configurations.classpath {
+        resolutionStrategy.force("org.apache.commons:commons-compress:1.25.0")
+    }
+}
+
 plugins {
     base
     id("com.android.application") version "8.7.3" apply false

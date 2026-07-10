@@ -97,7 +97,13 @@ class WeatherDatabase(context: Context) :
     }
 
     fun saveLocation(location: LocationResult) {
-        val nextPosition = readableDatabase.rawQuery(
+        val existingPosition = readableDatabase.rawQuery(
+            "SELECT position FROM saved_locations WHERE location_key = ?",
+            arrayOf(location.key),
+        ).use { cursor ->
+            if (cursor.moveToFirst()) cursor.getInt(0) else null
+        }
+        val position = existingPosition ?: readableDatabase.rawQuery(
             "SELECT COALESCE(MAX(position), -1) + 1 FROM saved_locations",
             null,
         ).use { cursor ->
@@ -110,13 +116,13 @@ class WeatherDatabase(context: Context) :
             put("latitude", location.latitude)
             put("longitude", location.longitude)
             put("adcode", location.adcode)
-            put("position", nextPosition)
+            put("position", position)
         }
         writableDatabase.insertWithOnConflict(
             "saved_locations",
             null,
             values,
-            SQLiteDatabase.CONFLICT_IGNORE,
+            SQLiteDatabase.CONFLICT_REPLACE,
         )
     }
 

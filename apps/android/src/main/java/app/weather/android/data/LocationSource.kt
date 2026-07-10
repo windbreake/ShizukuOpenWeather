@@ -1,16 +1,35 @@
 package app.weather.android.data
 
+import android.content.Context
+import app.weather.android.R
 import app.weather.android.model.ApiSettings
 import app.weather.android.model.LocationResult
+import java.util.Locale
+import kotlin.math.abs
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 
-internal class LocationSource {
+internal class LocationSource(context: Context) {
+    private val appContext = context.applicationContext
+    private val chinaIndex by lazy {
+        appContext.resources.openRawResource(R.raw.china_city_geo)
+            .bufferedReader(Charsets.UTF_8)
+            .use(ChinaLocationIndex::fromJson)
+    }
+
     suspend fun search(query: String, settings: ApiSettings): List<LocationResult> =
         withContext(Dispatchers.IO) {
-            if (settings.amapApiKey.isNotBlank()) searchAmap(query, settings)
-            else searchOpenMeteo(query, settings)
+            val normalizedQuery = query.trim()
+            val localResults = chinaIndex.search(normalizedQuery)
+            if (localResults.isNotEmpty()) return@withContext localResults
+            val remoteResults = if (settings.amapApiKey.isNotBlank()) {
+                runCatching { searchAmap(normalizedQuery, settings) }
+                    .getOrElse { runCatching { searchOpenMeteo(normalizedQuery, settings) }.getOrDefault(emptyList()) }
+            } else {
+                runCatching { searchOpenMeteo(normalizedQuery, settings) }.getOrDefault(emptyList())
+            }
+            mergeResults(normalizedQuery, localResults, remoteResults)
         }
 
     private fun searchOpenMeteo(query: String, settings: ApiSettings): List<LocationResult> {
@@ -18,7 +37,7 @@ internal class LocationSource {
             settings.geocodingUrl,
             mapOf(
                 "name" to query,
-                "count" to "12",
+                "count" to "20",
                 "language" to "zh",
                 "format" to "json",
             ),
@@ -58,7 +77,8 @@ internal class LocationSource {
             mapOf("address" to query, "output" to "JSON", "key" to settings.amapApiKey),
         )
         val geocodes = JsonHttp.get(geocodeUrl).optJSONArray("geocodes") ?: JSONArray()
-        geocodes.optJSONObject(0)?.let { item ->
+        for (index in 0 until geocodes.length()) {
+            val item = geocodes.optJSONObject(index) ?: continue
             parseAmapLocation(item.optString("location"))?.let { (latitude, longitude) ->
                 val label = item.optString("district")
                     .ifBlank { item.optString("city") }
@@ -108,9 +128,45 @@ internal class LocationSource {
                 adcode = adcode,
             )
         }
-        return results
-            .distinctBy { "${it.label}|${it.subtitle}|${it.latitude}|${it.longitude}" }
-            .take(12)
+        return results.distinctBy { "${it.label}|${it.subtitle}|${it.latitude}|${it.longitude}" }
+    }
+
+    private fun mergeResults(
+        query: String,
+        localResults: List<LocationResult>,
+        remoteResults: List<LocationResult>,
+    ): List<LocationResult> {
+        val merged = localResults.toMutableList()
+        remoteResults.sortedByDescending { resultMatchScore(query, it) }.forEach { candidate ->
+            val duplicate = merged.any { existing ->
+                canonicalName(existing.label) == canonicalName(candidate.label) &&
+                    abs(existing.latitude - candidate.latitude) < 0.45 &&
+                    abs(existing.longitude - candidate.longitude) < 0.45
+            }
+            if (!duplicate) merged += candidate
+        }
+        return merged.take(20)
+    }
+
+    private fun resultMatchScore(query: String, result: LocationResult): Int {
+        val canonicalQuery = canonicalName(query)
+        val canonicalLabel = canonicalName(result.label)
+        return when {
+            result.label == query -> 100
+            canonicalLabel == canonicalQuery -> 90
+            result.label.startsWith(query) -> 70
+            canonicalLabel.startsWith(canonicalQuery) -> 60
+            result.subtitle.contains(query) -> 50
+            else -> 0
+        }
+    }
+
+    private fun canonicalName(value: String): String {
+        var result = value.trim().lowercase(Locale.ROOT)
+        val suffixes = listOf("特别行政区", "自治区", "自治州", "自治县", "自治旗", "地区", "新区", "省", "市", "县", "区", "州", "盟", "旗")
+        val suffix = suffixes.firstOrNull { result.endsWith(it) }
+        if (suffix != null && result.length - suffix.length >= 2) result = result.dropLast(suffix.length)
+        return result
     }
 
     private fun parseAmapLocation(raw: String): Pair<Double, Double>? {

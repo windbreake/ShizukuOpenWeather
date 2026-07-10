@@ -12,7 +12,8 @@ import kotlinx.coroutines.withContext
 class WeatherRepository(context: Context) {
     private val database = WeatherDatabase(context)
     private val settingsStore = SecureSettingsStore(context)
-    private val api = WeatherApiClient()
+    private val api = WeatherApiClient(context.applicationContext)
+    private val deviceLocation = DeviceLocationSource(context.applicationContext)
 
     suspend fun settings(): AppSettings = withContext(Dispatchers.IO) {
         settingsStore.load()
@@ -42,6 +43,8 @@ class WeatherRepository(context: Context) {
         val settings = settingsStore.load()
         return api.search(query.trim(), settings.api)
     }
+
+    suspend fun currentLocation(): LocationResult = deviceLocation.currentLocation()
 
     suspend fun weather(location: LocationResult, force: Boolean = false): WeatherSummary {
         val settings = settingsStore.load()

@@ -1,12 +1,14 @@
 package app.weather.android.data
 
+import android.content.Context
+
 import app.weather.android.model.ApiSettings
 import app.weather.android.model.LocationResult
 import app.weather.android.model.ProviderMode
 import app.weather.android.model.WeatherSummary
 
-class WeatherApiClient {
-    private val locations = LocationSource()
+class WeatherApiClient(context: Context) {
+    private val locations = LocationSource(context)
     private val openMeteo = OpenMeteoWeatherSource()
     private val qWeather = QWeatherSource()
 
