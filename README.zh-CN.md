@@ -1,165 +1,143 @@
 <p align="center">
-  <img src="apps/desktop-dotnet/assets/app-icon-source.png" alt="ShizukuOpenWeather" width="180" />
+  <img src="apps/desktop-dotnet/assets/app-icon-source.png" alt="ShizukuOpenWeather" width="160" />
 </p>
 
 <h1 align="center">ShizukuOpenWeather</h1>
 
 <p align="center">
-  面向 PC 桌面端的现代天气应用，当前主链路使用 .NET 10 桌面壳、Vue 3 界面、Java/Kotlin 服务层与 SQLite 本地缓存。
+  面向 Windows 与 Android 的现代天气应用。桌面端保留大屏卡片式看板，Android 端使用原生 Kotlin / Jetpack Compose 重构移动体验。
 </p>
 
 <p align="center">
-  <a href="README.en.md">English</a> · <strong>简体中文</strong>
+  <a href="README.md">首页</a> · <a href="README.en.md">English</a> ·
+  <a href="https://github.com/windbreake/ShizukuOpenWeather/releases">Releases</a>
 </p>
 
 ## 项目简介
 
-ShizukuOpenWeather 是一个以 Windows 桌面端为核心的现代天气应用项目，整体视觉风格参考 Overdrop 一类的卡片化天气产品，但交互和布局重点放在桌面场景。
+ShizukuOpenWeather 是一个本地优先的天气应用项目，目标是在 Windows 桌面端和 Android 移动端提供统一但不生硬复制的天气体验。视觉方向参考 Overdrop 一类的现代天气产品，但保留当前项目自己的磨砂玻璃、磁贴卡片、天气背景和紧凑信息密度。
 
-项目已经从容器内开发副本迁移到本地仓库环境，同时保留了原有的容器校验与 CI/CD 链路，并补上了 Windows 桌面安装包、便携版输出和 GitHub Release 发布能力。
+项目已经从早期容器内开发环境迁出，当前仓库保留 Dev Container / CI/CD，同时新增 Windows 安装包、便携版、Android APK 与 GitHub Release 自动化。
 
-## 当前状态说明
+## 当前主线
 
-当前仓库的主开发与交付链路是：
+当前主线不是 Rust。仓库中仍保留少量历史 Rust workspace 文件用于兼容和备份，但活跃产品链路已经转向：
 
-- `.NET 10` 桌面壳
-- `Vue 3 + TypeScript` 桌面界面
-- `Java / Kotlin` 网络服务与接口层
-- `SQLite` 本地缓存与设置存储
+- Android：`Kotlin` + `Jetpack Compose`
+- Windows 桌面：`.NET 10` + `WebView2` + `Vue 3` + `TypeScript`
+- 服务与网络层：`Java / Kotlin`
+- 本地缓存与设置：`SQLite`
 
-仓库里目前仍然保留了一部分 `Rust` 相关目录与 workspace 文件，例如 `crates/`、`Cargo.toml`、`Cargo.lock`，但它们不再是当前桌面端主链路的核心部分，更接近遗留/预留模块。
+## 核心能力
 
-## 项目定位
+- 多地点天气看板，支持侧栏磁贴、卡片化详情和桌面大屏布局
+- Android 原生天气首页、地点页、设置页与自动显隐的液态玻璃底部导航栏
+- 国内行政区划离线搜索，覆盖省、市、区县、县级市等常见层级
+- 海外城市在线搜索，默认使用 Open-Meteo geocoding
+- 支持使用 Android 系统定位获取当前位置天气，实际定位来源由设备统一调度 GPS、北斗、Galileo、GLONASS 与网络定位
+- 天气默认走 Open-Meteo，避免仓库内硬编码私有 API Key
+- 可选配置和风天气、和风图标、高德 Web API 等自定义数据源
+- API 凭据不提交到仓库；Android 端由用户在设置页填写，并通过 Android Keystore 加密保存
+- 实时天气、逐小时趋势、7 日预报、AQI、天气预警、地图与雷达展示
+- 自定义背景、磨砂玻璃强度、卡片显隐、缓存刷新间隔等本地偏好
+- Windows 桌面 EXE、Inno Setup 安装包、便携 ZIP 与 Android APK 发布链路
 
-- 面向桌面端的天气看板与多地点管理
-- 强调现代 UI、卡片化信息组织与个性化设置
-- 本地优先，不依赖账号、云同步或复杂部署
-- 保留跨语言扩展能力，方便后续桌面端与移动端封装
+## 数据与隐私
 
-目前优先支持 PC 端，移动端适配仍作为后续工作预留。
+默认模式不需要任何私有天气 API Key。中国地点搜索使用仓库内置的离线行政区划坐标索引来定位城市或区县，再用 Open-Meteo 查询天气；海外地点搜索默认走 Open-Meteo 的免费地理编码接口。
 
-## 当前能力
-
-- 多地点天气查看与侧栏磁贴卡片
-- 国内区县级、海外城市级地点搜索
-- 实时天气、逐小时趋势、7 日预报
-- 空气质量、天气预警、地图与雷达信息展示
-- 自定义背景、磨砂玻璃效果、卡片显隐与布局偏好
-- 本地 SQLite 缓存与本地配置存储
-- Windows 桌面程序、便携版输出、安装包输出
+可选 API 凭据只应由用户在本地应用设置中填写，不应写入 README、源码、配置样例或 GitHub Actions 日志。已经泄露过的 Token 应视为失效风险，建议在对应平台轮换。
 
 ## 技术栈
 
-### 当前主链路
-
-- `Vue 3` + `TypeScript`
-- `Vite`
+- `Kotlin` + `Jetpack Compose`
 - `.NET 10` WinForms + `WebView2`
+- `Vue 3` + `TypeScript` + `Vite`
 - `Java / Kotlin`
 - `SQLite`
-
-### 数据来源
-
-- 天气数据：`QWeather（和风天气）`
-- 地理编码与地点搜索：`AMap Web API（高德）`
-- 地图底图：`OpenStreetMap`
-
-### 遗留/预留模块
-
-- `Rust` workspace 仍在仓库中，但不是当前 README 所描述的主交付路线
+- `Open-Meteo`
+- 可选：`QWeather`、`AMap Web API`、`OpenStreetMap`
 
 ## 仓库结构
 
 ```text
 ShizukuOpenWeather/
-├── .devcontainer/                   # Dev Container 配置
-├── .github/workflows/               # GitHub Actions 工作流
+├── .devcontainer/                 # Dev Container 开发环境
+├── .github/workflows/             # Android、桌面端与容器 CI/CD
 ├── apps/
-│   ├── api/                         # Java / Kotlin 后端服务
-│   ├── desktop-dotnet/              # .NET 10 桌面壳、桌面本地主机、安装包资源
-│   └── web/                         # Vue 3 + TypeScript 桌面天气界面
-├── crates/                          # 遗留 Rust workspace 模块
-├── data/                            # 本地开发数据
-├── docs/                            # 架构、接口、数据、UI 设计文档
-├── scripts/                         # 开发、构建、打包脚本
-├── Dockerfile                       # 容器开发镜像
-├── docker-compose.yml               # 容器开发环境
-├── build.gradle.kts                 # 顶层构建编排
+│   ├── android/                   # Kotlin + Jetpack Compose Android 应用
+│   ├── api/                       # Java / Kotlin 服务与接口层
+│   ├── desktop-dotnet/            # .NET 10 桌面壳、图标和安装包资源
+│   └── web/                       # Vue 3 + TypeScript 桌面天气 UI
+├── data/                          # 离线数据与本地开发数据
+├── docs/                          # 架构、接口、UI、数据来源和许可证
+├── scripts/                       # 开发、校验、打包脚本
+├── Dockerfile                     # 容器开发镜像
+├── docker-compose.yml             # 容器开发环境
+├── build.gradle.kts               # Gradle 顶层构建
 └── README.md
 ```
 
 ## 本地开发
 
-### 推荐环境
+推荐环境：
 
 - JDK 21
 - Node.js 22+
-- SQLite3 CLI
+- Gradle 8.9
+- Android SDK 35 或 Android Studio
 - .NET 10 SDK
-- Inno Setup 6（用于 Windows 安装包）
+- SQLite3 CLI
+- Inno Setup 6，用于 Windows 安装包
 
-### 环境检查
+环境检查：
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts/check-dev-env.ps1
 ```
 
-### 分别启动 API 与 Web 开发服务
+桌面端开发：
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts/dev-api.ps1
 powershell -ExecutionPolicy Bypass -File scripts/dev-web.ps1
-```
-
-### 启动现有的组合开发流程
-
-```powershell
 powershell -ExecutionPolicy Bypass -File scripts/start-dev.ps1
 ```
 
-## Windows 桌面打包
+Android 构建：
 
-当前仓库已经支持桌面端完整输出，包括程序图标、安装包图标与 Release 资产打包。
+```powershell
+gradle :apps:android:testDebugUnitTest :apps:android:assembleDebug
+```
 
-### 构建桌面程序与安装包
+Android APK 输出：
+
+```text
+apps/android/build/outputs/apk/debug/android-debug.apk
+```
+
+Windows 桌面打包：
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts/build-desktop-installer.ps1 -Version 0.1.0
 ```
 
-### 输出内容
+桌面打包输出包括：
 
-构建脚本会生成以下产物：
-
-- `ShizukuWeatherDesktop.exe`：桌面程序发布输出
-- `ShizukuOpenWeather-Setup-<version>.exe`：Windows 安装包
-- `ShizukuOpenWeather-portable-<version>.zip`：便携版压缩包
-
-安装包默认安装到当前用户目录下，并可创建开始菜单与桌面快捷方式。
+- `ShizukuWeatherDesktop.exe`
+- `ShizukuOpenWeather-Setup-<version>.exe`
+- `ShizukuOpenWeather-portable-<version>.zip`
 
 ## CI/CD
 
-### 现有容器链路
+- `Devcontainer CI/CD`：保留原容器开发链路，校验多语言工程与容器构建
+- `Android CI and Release`：运行 Android 单元测试、构建 APK，并在标签发布时追加 Release 资产
+- `Desktop Release`：打包 Windows 桌面 EXE、安装包和便携版 ZIP
 
-以下链路仍然保留，继续作为开发容器和共享校验流程的基础：
+发布产物统一查看：
 
-- `.devcontainer/devcontainer.json`
-- `.github/workflows/devcontainer-ci-cd.yml`
+- [GitHub Releases](https://github.com/windbreake/ShizukuOpenWeather/releases)
 
-### Windows 桌面发布链路
+## 许可证与第三方数据
 
-仓库另外补充了单独的 Windows 桌面打包工作流：
-
-- `.github/workflows/desktop-release.yml`
-
-这样可以在不破坏原有容器 CI/CD 的前提下，单独维护桌面端发布能力。
-
-## Release
-
-项目的发布产物可以在 GitHub Releases 页面查看：
-
-- [Releases](https://github.com/windbreake/ShizukuOpenWeather/releases)
-
-## 说明
-
-GitHub 仓库首页显示的就是根目录 `README.md`。只要把这个文件推到默认分支 `main`，仓库首页内容就会直接更新。
+项目内第三方数据和资源的许可证说明见 [docs/licenses](docs/licenses)。其中中国行政区划离线索引来自 `city-geo` 数据集，详情见 [docs/licenses/README.md](docs/licenses/README.md)。
