@@ -87,14 +87,17 @@ jobs:
         if: steps.android_build.outcome == 'failure'
         shell: bash
         run: |
-          message="$(grep -E '^e: ' android-build.log | tail -n 1)"
+          message="$(grep -E -m 1 '(^e: |Unresolved reference|Compilation error|Execution failed for task|Plugin .* was not found|Could not resolve|command not found)' android-build.log || true)"
           if [ -z "$message" ]; then
-            message="$(awk '/^\* What went wrong:/{getline; print; exit}' android-build.log)"
+            message="$(awk '/What went wrong:/{getline; print; exit}' android-build.log || true)"
           fi
           if [ -z "$message" ]; then
-            message="$(grep -E '^> ' android-build.log | tail -n 1)"
+            message="$(grep -E '^> ' android-build.log | tail -n 1 || true)"
           fi
-          message="$(printf '%s' "$message" | tr '\n' ' ' | cut -c1-135)"
+          if [ -z "$message" ]; then
+            message="$(grep -Ei '(error|failed|failure|exception|not found)' android-build.log | tail -n 1 || true)"
+          fi
+          message="$(echo "$message" | cut -c1-135)"
           if [ -z "$message" ]; then
             message="Android APK build failed; open the workflow log for details"
           fi
